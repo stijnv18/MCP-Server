@@ -19,7 +19,7 @@ import * as Sentry from '@sentry/node';
 import { nodeProfilingIntegration } from '@sentry/profiling-node';
 import { checkAuth } from './auth.js';
 import { initDbPool, closeDbPool } from './db.js';
-import { handleGetBasicInfo } from './tools.js';
+import { tools, handleToolCall } from './tools.js';
 
 export class SimpleMcpServer {
   private server: any;
@@ -236,21 +236,7 @@ export class SimpleMcpServer {
     // List available tools
     server.setRequestHandler(ListToolsRequestSchema, async () => {
       return {
-        tools: [
-          {
-            name: "get_basic_info",
-            description: "Get basic information as text",
-            inputSchema: {
-              type: "object",
-              properties: {
-                message: {
-                  type: "string",
-                  description: "Optional message to include"
-                }
-              }
-            }
-          }
-        ]
+        tools
       };
     });
 
@@ -258,23 +244,7 @@ export class SimpleMcpServer {
     server.setRequestHandler(CallToolRequestSchema, async (request: any) => {
       const { name, arguments: args } = request.params;
 
-      try {
-        switch (name) {
-          case "get_basic_info":
-            return await handleGetBasicInfo(args);
-          default:
-            throw new McpError(
-              ErrorCode.MethodNotFound,
-              `Unknown tool: ${name}`
-            );
-        }
-      } catch (error) {
-        Sentry.captureException(error);
-        throw new McpError(
-          ErrorCode.InternalError,
-          `Tool execution failed: ${error instanceof Error ? error.message : String(error)}`
-        );
-      }
+      return await handleToolCall(name, args);
     });
   }
 }
