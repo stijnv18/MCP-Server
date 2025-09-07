@@ -32,29 +32,8 @@ export const tools = [
   }
 ];
 
-export async function handleToolCall(name: string, args: any) {
-  try {
-    switch (name) {
-      case "get_basic_info":
-        return await handleGetBasicInfo(args);
-      case "run_sql":
-        return await handleRunSql(args);
-      default:
-        throw new McpError(
-          ErrorCode.MethodNotFound,
-          `Unknown tool: ${name}`
-        );
-    }
-  } catch (error) {
-    Sentry.captureException(error);
-    throw new McpError(
-      ErrorCode.InternalError,
-      `Tool execution failed: ${error instanceof Error ? error.message : String(error)}`
-    );
-  }
-}
 
-export async function handleGetBasicInfo(args: any) {
+export async function getBasicInfoHandler(args: any) {
   const { message = "Hello from MCP server!" } = args;
 
   try {
@@ -85,7 +64,7 @@ export async function handleGetBasicInfo(args: any) {
   }
 }
 
-export async function handleRunSql(args: any) {
+export async function runSqlHandler(args: any) {
   const { query } = args;
 
   try {
@@ -137,5 +116,32 @@ export async function handleRunSql(args: any) {
         }
       ]
     };
+  }
+}
+
+// Handler map: tool name -> handler function
+const toolHandlers: Record<string, (args: any) => Promise<any>> = {
+  get_basic_info: getBasicInfoHandler,
+  run_sql: runSqlHandler,
+};
+
+// Updated handleToolCall
+export async function handleToolCall(name: string, args: any) {
+  const handler = toolHandlers[name];
+  if (!handler) {
+    throw new McpError(
+      ErrorCode.MethodNotFound,
+      `Unknown tool: ${name}`
+    );
+  }
+
+  try {
+    return await handler(args);
+  } catch (error) {
+    Sentry.captureException(error);
+    throw new McpError(
+      ErrorCode.InternalError,
+      `Tool execution failed: ${error instanceof Error ? error.message : String(error)}`
+    );
   }
 }
