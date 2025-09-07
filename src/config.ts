@@ -22,8 +22,8 @@ export const dbConfig: DbConfig = {
   server: process.env.DB_SERVER || 'your-sql-server',
   database: process.env.DB_NAME || 'yourdb',
   options: {
-    encrypt: true,
-    trustServerCertificate: false,
+    encrypt: false,
+    trustServerCertificate: process.env.TRUST_CERT === 'true' || false,
   },
   pool: {
     max: 10,

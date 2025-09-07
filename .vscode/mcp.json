@@ -1,9 +1,11 @@
 {
   "servers": {
-    "mcp-server-on-prem": {
-      "type": "stdio",
-      "command": "npm",
-      "args": ["start"]
+    "mcp-server-docker": {
+      "type": "http",
+      "url": "http://localhost:3000/mcp",
+      "headers": {
+        "Authorization": "Bearer test-api-key"
+      }
     }
   }
 }

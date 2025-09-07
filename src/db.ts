@@ -1,4 +1,4 @@
-import * as sql from 'mssql';
+import sql from 'mssql';
 import { dbConfig } from './config.js';
 
 let pool: any = null;

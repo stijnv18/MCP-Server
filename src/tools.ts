@@ -6,17 +6,21 @@ export async function handleGetBasicInfo(args: any) {
 
   try {
     const pool = getPool();
-    const result = await pool.request().query('SELECT TOP 10 * FROM YourTable');
+    const result = await pool.request().query('SELECT TOP 10 name FROM sys.databases');
     return {
       content: [
         {
           type: "text",
-          text: `Basic info: ${message}. DB rows: ${result.recordset.length}. Server is running with simple auth.`
+          text: `Basic info: ${message}. DB connection successful. Found ${result.recordset.length} databases. Server is running with simple auth.`
         }
       ]
     };
   } catch (error) {
-    Sentry.captureException(error);
+    // Only capture exception if Sentry is initialized
+    const sentryDsn = process.env.SENTRY_DSN || 'your-sentry-dsn-here';
+    if (sentryDsn && sentryDsn !== 'your-sentry-dsn-here') {
+      Sentry.captureException(error);
+    }
     return {
       content: [
         {

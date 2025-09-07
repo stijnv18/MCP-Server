@@ -97,16 +97,66 @@ Process data using Microsoft Copilot 365.
 
 ## Docker Deployment
 
-Build the Docker image:
+This project includes a full Docker environment with MS SQL Server for testing.
+
+### Prerequisites
+
+- Docker and Docker Compose installed
+
+### Quick Start
+
+1. Clone the repository
+2. Copy the environment file:
+   ```bash
+   cp .env.example .env  # If you have .env.example, otherwise .env is already created
+   ```
+3. Start the services:
+   ```bash
+   docker-compose up --build
+   ```
+
+This will start:
+- MS SQL Server on port 1433 with dummy data
+- MCP Server on port 3000
+
+### Services
+
+- **sqlserver**: MS SQL Server with TestDB database and YourTable with 10 dummy records
+- **mcp-server**: The MCP server application
+
+### Environment Variables
+
+Configure the following in `.env`:
 
 ```bash
-docker build -t mcp-server-on-prem .
+# Database
+DB_USER=sa
+DB_PASSWORD=YourStrong!Passw0rd
+DB_SERVER=sqlserver
+DB_NAME=TestDB
+
+# API
+API_KEY=test-api-key
+
+# SSL
+TRUST_CERT=true
 ```
 
-Run the container:
+### Testing the Server
+
+Once running, you can test the MCP server:
 
 ```bash
-docker run -p 3000:3000 mcp-server-on-prem
+curl -X POST http://localhost:3000/mcp \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer test-api-key" \
+  -d '{"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}'
+```
+
+### Stopping the Environment
+
+```bash
+docker-compose down
 ```
 
 ## MCP Client Integration
@@ -145,12 +195,21 @@ Add to your `claude_desktop_config.json`:
 
 ```
 src/
-  index.ts          # Main server implementation
+  index.ts          # Main entry point
+  server.ts         # MCP server implementation
+  config.ts         # Configuration and environment variables
+  db.ts             # Database connection and pool management
+  auth.ts           # Authentication logic
+  tools.ts          # MCP tool handlers
 dist/               # Compiled JavaScript
 .vscode/
   mcp.json         # MCP configuration
 .github/
   copilot-instructions.md  # Project documentation
+Dockerfile          # Docker build file
+docker-compose.yml  # Multi-service Docker setup
+init-db.sql         # Database initialization script
+.env               # Environment variables
 ```
 
 ### Adding New Tools

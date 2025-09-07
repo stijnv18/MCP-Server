@@ -1,0 +1,31 @@
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: sqlserver
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "YourStrong!Passw0rd"
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserverdata:/var/opt/mssql
+
+  mcp-server:
+    build: .
+    ports:
+      - "3000:3000"
+    depends_on:
+      - sqlserver
+    environment:
+      - DB_USER=sa
+      - DB_PASSWORD=YourStrong!Passw0rd
+      - DB_SERVER=sqlserver
+      - DB_NAME=master
+      - API_KEY=test-api-key
+      - SENTRY_DSN=
+      - NODE_ENV=development
+    env_file:
+      - .env
+
+volumes:
+  sqlserverdata:
