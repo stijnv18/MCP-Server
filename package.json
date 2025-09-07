@@ -1,0 +1,35 @@
+{
+  "name": "mcp-server-on-prem",
+  "version": "1.0.0",
+  "description": "MCP server for on-prem database access with Microsoft Copilot 365 integration",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "database",
+    "microsoft",
+    "copilot",
+    "on-prem"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/mssql": "^9.1.8",
+    "@types/node": "^20.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.17.5",
+    "@sentry/node": "^10.10.0",
+    "@sentry/profiling-node": "^10.10.0",
+    "mssql": "^11.0.1"
+  }
+}

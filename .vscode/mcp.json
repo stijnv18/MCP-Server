@@ -1,0 +1,9 @@
+{
+  "servers": {
+    "mcp-server-on-prem": {
+      "type": "stdio",
+      "command": "npm",
+      "args": ["start"]
+    }
+  }
+}
