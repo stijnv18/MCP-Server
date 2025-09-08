@@ -17,10 +17,10 @@ export interface DbConfig {
 }
 
 export const dbConfig: DbConfig = {
-  user: process.env.DB_USER || 'readonlyuser',
-  password: process.env.DB_PASSWORD || 'yourpassword',
-  server: process.env.DB_SERVER || 'your-sql-server',
-  database: process.env.DB_NAME || 'yourdb',
+  user: process.env.DB_USER || 'airflow',
+  password: process.env.DB_PASSWORD || '0f6xEJ8C0k0Jj8l8',
+  server: process.env.DB_SERVER || '10.232.10.65\\BI_PROD',
+  database: process.env.DB_NAME || 'BI_DWH',
   options: {
     encrypt: false,
     trustServerCertificate: process.env.TRUST_CERT === 'true' || false,

@@ -19,6 +19,7 @@ import * as Sentry from '@sentry/node';
 import { nodeProfilingIntegration } from '@sentry/profiling-node';
 import { checkAuth } from './auth.js';
 import { initDbPool, closeDbPool } from './db.js';
+import { dbConfig } from './config.js';
 import { tools, handleToolCall } from './tools.js';
 
 export class SimpleMcpServer {
@@ -208,7 +209,16 @@ export class SimpleMcpServer {
 
     const port = process.env.PORT || 3000;
     server.listen(port, () => {
+      const address = server.address();
+      const host = typeof address === 'string' ? address : address?.address || 'localhost';
+      const maskedPassword = dbConfig.password ? '*'.repeat(dbConfig.password.length) : 'not set';
+      
       console.error(`MCP Server running on HTTP port ${port} with /mcp endpoint`);
+      console.error(`Server IP: ${host}:${port}`);
+      console.error(`Database: ${dbConfig.database}`);
+      console.error(`Database Server: ${dbConfig.server}`);
+      console.error(`Database User: ${dbConfig.user}`);
+      console.error(`Database Password: ${maskedPassword}`);
     });
   }
 
