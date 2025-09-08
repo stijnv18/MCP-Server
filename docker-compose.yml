@@ -1,15 +1,14 @@
 services:
-  mcp-server:
+  mcp-server-dev-requests:
     build: .
     ports:
-      - "3000:3000"
+      - "3001:3001"
     environment:
-      - DB_USER=sa
-      - DB_PASSWORD=YourStrong!Passw0rd
-      - DB_SERVER=kb-sql16bi-prd\BI_PORD
-      - DB_NAME=BI_DWH
+      - DB_USER=copilot
+      - DB_PASSWORD=--password--
+      - DB_SERVER=10.232.11.14\ua
+      - DB_NAME=MI_DataWarehouse
       - API_KEY=test-api-key
       - SENTRY_DSN=
       - NODE_ENV=development
-    env_file:
-      - .env
+      - PORT=3001
