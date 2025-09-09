@@ -104,6 +104,23 @@ export const tools = [
       },
       required: ["query"]
     }
+  },
+  {
+    name: "get_table_joins",
+    description: "Get join information from 'Joins' extended property on tables",
+    inputSchema: {
+      type: "object",
+      properties: {
+        table: {
+          type: "string",
+          description: "Specific table name to get joins for (optional - if not provided, returns joins for all tables)"
+        },
+        database: {
+          type: "string",
+          description: "The database to query (default is current database)"
+        }
+      }
+    }
   }
 ];
 
@@ -378,6 +395,105 @@ export async function runSqlHandler(args: any) {
   }
 }
 
+// Handler for getting table joins from extended properties
+export async function getTableJoinsHandler(args: any) {
+  const { table, database } = args;
+
+  try {
+    const pool = getPool();
+    let query = '';
+
+    if (database) {
+      query = `USE [${database}]; `;
+    }
+
+    // Query for the extended property containing the joins JSON structure
+    query += `
+      SELECT ep.value AS joins_structure
+      FROM sys.extended_properties ep
+      WHERE ep.class = 0 
+      AND ep.major_id = 0 
+      AND ep.minor_id = 0 
+      AND ep.name = 'Joins'
+    `;
+
+    console.log(`Executing query: ${query}`);
+    const result = await pool.request().query(query);
+
+    if (result.recordset.length === 0) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              database: database || 'current',
+              table_joins: [],
+              message: "No 'Joins' extended property found at database level"
+            }, null, 2)
+          }
+        ]
+      };
+    }
+
+    const joinsStructure = JSON.parse(result.recordset[0].joins_structure);
+    const dbName = database || Object.keys(joinsStructure)[0]; // Use provided database or first one in structure
+    const dbJoins = joinsStructure[dbName] || joinsStructure[Object.keys(joinsStructure)[0]];
+
+    let tableJoins: any[] = [];
+
+    if (table) {
+      // Get joins for specific table
+      const schemaJoins = Object.values(dbJoins)[0] as any; // Assuming first schema
+      if (schemaJoins[table]) {
+        tableJoins.push({
+          schema: Object.keys(dbJoins)[0],
+          table: table,
+          joins: schemaJoins[table].joins
+        });
+      }
+    } else {
+      // Get joins for all tables
+      Object.entries(dbJoins).forEach(([schemaName, schemaData]: [string, any]) => {
+        Object.entries(schemaData).forEach(([tableName, tableData]: [string, any]) => {
+          if (tableData.joins) {
+            tableJoins.push({
+              schema: schemaName,
+              table: tableName,
+              joins: tableData.joins
+            });
+          }
+        });
+      });
+    }
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            database: dbName,
+            table_joins: tableJoins
+          }, null, 2)
+        }
+      ]
+    };
+  } catch (error) {
+    // Only capture exception if Sentry is initialized
+    const sentryDsn = process.env.SENTRY_DSN || 'your-sentry-dsn-here';
+    if (sentryDsn && sentryDsn !== 'your-sentry-dsn-here') {
+      Sentry.captureException(error);
+    }
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Error getting table joins: ${error instanceof Error ? error.message : String(error)}`
+        }
+      ]
+    };
+  }
+}
+
 // Handler map: tool name -> handler function
 const toolHandlers: Record<string, (args: any) => Promise<any>> = {
   get_list_views: getListViewsHandler,
@@ -386,6 +502,7 @@ const toolHandlers: Record<string, (args: any) => Promise<any>> = {
   get_columns: getColumnsHandler,
   execute_stored_procedure: executeStoredProcedureHandler,
   run_sql: runSqlHandler,
+  get_table_joins: getTableJoinsHandler,
 };
 
 // Updated handleToolCall
