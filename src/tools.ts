@@ -4,16 +4,91 @@ import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
 
 export const tools = [
   {
-    name: "get_basic_info",
-    description: "Get basic information as text",
+    name: "get_list_views",
+    description: "Get a list of all views in the database",
     inputSchema: {
       type: "object",
       properties: {
-        message: {
+        database: {
           type: "string",
-          description: "Optional message to include"
+          description: "The database to query (default is current database)",
         }
       }
+    }
+  },
+  {
+    name: "get_databases",
+    description: "Get a list of all databases",
+    inputSchema: {
+      type: "object",
+      properties: {}
+    }
+  },
+  {
+    name: "get_tables",
+    description: "Get a list of all tables in the database",
+    inputSchema: {
+      type: "object",
+      properties: {
+        database: {
+          type: "string",
+          description: "The database to query (default is current database)",
+        }
+      }
+    }
+  },
+  {
+    name: "get_columns",
+    description: "Get a list of columns for a specific table",
+    inputSchema: {
+      type: "object",
+      properties: {
+        table: {
+          type: "string",
+          description: "The table name to get columns for"
+        },
+        database: {
+          type: "string",
+          description: "The database to query (default is current database)"
+        }
+      },
+      required: ["table"]
+    }
+  },
+  {
+    name: "execute_stored_procedure",
+    description: "Execute a stored procedure with parameters",
+    inputSchema: {
+      type: "object",
+      properties: {
+        procedure: {
+          type: "string",
+          description: "The stored procedure name to execute"
+        },
+        parameters: {
+          type: "array",
+          description: "Array of parameter objects with name and value",
+          items: {
+            type: "object",
+            properties: {
+              name: {
+                type: "string",
+                description: "Parameter name"
+              },
+              value: {
+                type: "string",
+                description: "Parameter value"
+              }
+            },
+            required: ["name", "value"]
+          }
+        },
+        database: {
+          type: "string",
+          description: "The database to query (default is current database)"
+        }
+      },
+      required: ["procedure"]
     }
   },
   {
@@ -33,17 +108,23 @@ export const tools = [
 ];
 
 
-export async function getBasicInfoHandler(args: any) {
-  const { message = "Hello from MCP server!" } = args;
+export async function getListViewsHandler(args: any) {
+  const { database } = args;
 
   try {
     const pool = getPool();
-    const result = await pool.request().query('SELECT TOP 10 name FROM sys.databases');
+    let query = 'SELECT name FROM sys.views';
+    if (database) {
+      query = `USE [${database}]; ${query}`;
+    }
+    console.log(`Executing query: ${query}`);
+    const result = await pool.request().query(query);
+    const views = result.recordset.map((row: any) => row.name);
     return {
       content: [
         {
           type: "text",
-          text: `Basic info: ${message}. DB connection successful. Found ${result.recordset.length} databases. Server is running with simple auth.`
+          text: `Views in ${database || 'current'} database: ${views.join(', ')}`
         }
       ]
     };
@@ -57,7 +138,172 @@ export async function getBasicInfoHandler(args: any) {
       content: [
         {
           type: "text",
-          text: `Error querying DB: ${error instanceof Error ? error.message : String(error)}`
+          text: `Error querying views: ${error instanceof Error ? error.message : String(error)}`
+        }
+      ]
+    };
+  }
+}
+
+export async function getDatabasesHandler(args: any) {
+  try {
+    const pool = getPool();
+    const query = 'SELECT name FROM sys.databases';
+    console.log(`Executing query: ${query}`);
+    const result = await pool.request().query(query);
+    const databases = result.recordset.map((row: any) => row.name);
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Databases: ${databases.join(', ')}`
+        }
+      ]
+    };
+  } catch (error) {
+    // Only capture exception if Sentry is initialized
+    const sentryDsn = process.env.SENTRY_DSN || 'your-sentry-dsn-here';
+    if (sentryDsn && sentryDsn !== 'your-sentry-dsn-here') {
+      Sentry.captureException(error);
+    }
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Error querying databases: ${error instanceof Error ? error.message : String(error)}`
+        }
+      ]
+    };
+  }
+}
+
+export async function getTablesHandler(args: any) {
+  const { database } = args;
+
+  try {
+    const pool = getPool();
+    let query = 'SELECT name FROM sys.tables';
+    if (database) {
+      query = `USE [${database}]; ${query}`;
+    }
+    console.log(`Executing query: ${query}`);
+    const result = await pool.request().query(query);
+    const tables = result.recordset.map((row: any) => row.name);
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Tables in ${database || 'current'} database: ${tables.join(', ')}`
+        }
+      ]
+    };
+  } catch (error) {
+    // Only capture exception if Sentry is initialized
+    const sentryDsn = process.env.SENTRY_DSN || 'your-sentry-dsn-here';
+    if (sentryDsn && sentryDsn !== 'your-sentry-dsn-here') {
+      Sentry.captureException(error);
+    }
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Error querying tables: ${error instanceof Error ? error.message : String(error)}`
+        }
+      ]
+    };
+  }
+}
+
+export async function getColumnsHandler(args: any) {
+  const { table, database } = args;
+
+  try {
+    const pool = getPool();
+    let query = `
+      SELECT c.name AS column_name, t.name AS data_type, c.max_length, c.precision, c.scale, c.is_nullable
+      FROM sys.columns c
+      INNER JOIN sys.types t ON c.user_type_id = t.user_type_id
+      WHERE c.object_id = OBJECT_ID('${table}')
+    `;
+    if (database) {
+      query = `USE [${database}]; ${query}`;
+    }
+    console.log(`Executing query: ${query}`);
+    const result = await pool.request().query(query);
+    const columns = result.recordset.map((row: any) => ({
+      name: row.column_name,
+      type: row.data_type,
+      max_length: row.max_length,
+      precision: row.precision,
+      scale: row.scale,
+      nullable: row.is_nullable
+    }));
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Columns in table ${table}: ${JSON.stringify(columns, null, 2)}`
+        }
+      ]
+    };
+  } catch (error) {
+    // Only capture exception if Sentry is initialized
+    const sentryDsn = process.env.SENTRY_DSN || 'your-sentry-dsn-here';
+    if (sentryDsn && sentryDsn !== 'your-sentry-dsn-here') {
+      Sentry.captureException(error);
+    }
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Error querying columns for table ${table}: ${error instanceof Error ? error.message : String(error)}`
+        }
+      ]
+    };
+  }
+}
+
+export async function executeStoredProcedureHandler(args: any) {
+  const { procedure, parameters = [], database } = args;
+
+  try {
+    const pool = getPool();
+    let query = `EXEC ${procedure}`;
+    if (parameters.length > 0) {
+      const paramStrings = parameters.map((param: any) => `@${param.name} = '${param.value}'`);
+      query += ' ' + paramStrings.join(', ');
+    }
+    if (database) {
+      query = `USE [${database}]; ${query}`;
+    }
+    console.log(`Executing query: ${query}`);
+    const result = await pool.request().query(query);
+    let response = `Stored procedure ${procedure} executed successfully.`;
+    if (result.recordset && result.recordset.length > 0) {
+      response += ` Results: ${JSON.stringify(result.recordset, null, 2)}`;
+    }
+    if (result.rowsAffected && result.rowsAffected.length > 0) {
+      response += ` Rows affected: ${result.rowsAffected[0]}`;
+    }
+    return {
+      content: [
+        {
+          type: "text",
+          text: response
+        }
+      ]
+    };
+  } catch (error) {
+    // Only capture exception if Sentry is initialized
+    const sentryDsn = process.env.SENTRY_DSN || 'your-sentry-dsn-here';
+    if (sentryDsn && sentryDsn !== 'your-sentry-dsn-here') {
+      Sentry.captureException(error);
+    }
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Error executing stored procedure ${procedure}: ${error instanceof Error ? error.message : String(error)}`
         }
       ]
     };
@@ -69,6 +315,7 @@ export async function runSqlHandler(args: any) {
 
   try {
     const pool = getPool();
+    console.log(`Executing query: ${query}`);
     const result = await pool.request().query(query);
 
     if (result.recordset && result.recordset.length > 0) {
@@ -121,7 +368,11 @@ export async function runSqlHandler(args: any) {
 
 // Handler map: tool name -> handler function
 const toolHandlers: Record<string, (args: any) => Promise<any>> = {
-  get_basic_info: getBasicInfoHandler,
+  get_list_views: getListViewsHandler,
+  get_databases: getDatabasesHandler,
+  get_tables: getTablesHandler,
+  get_columns: getColumnsHandler,
+  execute_stored_procedure: executeStoredProcedureHandler,
   run_sql: runSqlHandler,
 };
 
