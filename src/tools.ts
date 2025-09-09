@@ -45,7 +45,7 @@ export const tools = [
       properties: {
         table: {
           type: "string",
-          description: "The table name to get columns for"
+          description: "The fully qualified table name (schema.table) to get columns for"
         },
         database: {
           type: "string",
@@ -113,18 +113,24 @@ export async function getListViewsHandler(args: any) {
 
   try {
     const pool = getPool();
-    let query = 'SELECT name FROM sys.views';
+    let query = 'SELECT s.name AS schema_name, v.name AS view_name FROM sys.views v INNER JOIN sys.schemas s ON v.schema_id = s.schema_id';
     if (database) {
       query = `USE [${database}]; ${query}`;
     }
     console.log(`Executing query: ${query}`);
     const result = await pool.request().query(query);
-    const views = result.recordset.map((row: any) => row.name);
+    const viewsBySchema: Record<string, string[]> = {};
+    result.recordset.forEach((row: any) => {
+      if (!viewsBySchema[row.schema_name]) {
+        viewsBySchema[row.schema_name] = [];
+      }
+      viewsBySchema[row.schema_name].push(row.view_name);
+    });
     return {
       content: [
         {
           type: "text",
-          text: `Views in ${database || 'current'} database: ${views.join(', ')}`
+          text: JSON.stringify({ database: database || 'current', schemas: viewsBySchema }, null, 2)
         }
       ]
     };
@@ -182,18 +188,24 @@ export async function getTablesHandler(args: any) {
 
   try {
     const pool = getPool();
-    let query = 'SELECT name FROM sys.tables';
+    let query = 'SELECT s.name AS schema_name, t.name AS table_name FROM sys.tables t INNER JOIN sys.schemas s ON t.schema_id = s.schema_id';
     if (database) {
       query = `USE [${database}]; ${query}`;
     }
     console.log(`Executing query: ${query}`);
     const result = await pool.request().query(query);
-    const tables = result.recordset.map((row: any) => row.name);
+    const tablesBySchema: Record<string, string[]> = {};
+    result.recordset.forEach((row: any) => {
+      if (!tablesBySchema[row.schema_name]) {
+        tablesBySchema[row.schema_name] = [];
+      }
+      tablesBySchema[row.schema_name].push(row.table_name);
+    });
     return {
       content: [
         {
           type: "text",
-          text: `Tables in ${database || 'current'} database: ${tables.join(', ')}`
+          text: JSON.stringify({ database: database || 'current', schemas: tablesBySchema }, null, 2)
         }
       ]
     };
