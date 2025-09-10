@@ -13,7 +13,8 @@ export const tools = [
           type: "string",
           description: "The database to query (default is current database)",
         }
-      }
+      },
+      required: ["database"]
     }
   },
   {
@@ -34,12 +35,13 @@ export const tools = [
           type: "string",
           description: "The database to query (default is current database)",
         }
-      }
+      },
+      required: ["database"]
     }
   },
   {
     name: "get_columns",
-    description: "Get a list of columns for a specific table",
+    description: "Get a list of columns for a specific table or view",
     inputSchema: {
       type: "object",
       properties: {
@@ -119,7 +121,8 @@ export const tools = [
           type: "string",
           description: "The database to query (default is current database)"
         }
-      }
+      },
+      required: ["database"]
     }
   }
 ];
