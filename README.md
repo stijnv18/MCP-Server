@@ -1,21 +1,22 @@
-# MCP Server for On-Prem Database Access with Microsoft Copilot 365 Integration
+# MCP Server for On-Prem Database Access
 
-This project implements a Model Context Protocol (MCP) server that provides secure access to on-premise databases with Microsoft Copilot 365 integration.
+This project implements a Model Context Protocol (MCP) server that provides secure access to on-premise MSSQL databases. It allows MCP clients to execute SQL queries, retrieve database metadata, and perform various database operations through a standardized protocol.
 
 ## Features
 
-- **Database Tools**: Execute SQL queries against on-prem databases
-- **Schema Exploration**: Get database table schemas and metadata
-- **Microsoft Copilot Integration**: Leverage Copilot 365 for enhanced AI capabilities
-- **Secure Authentication**: OAuth-based authentication for database access
+- **Database Tools**: Execute SQL queries, stored procedures, and retrieve metadata
+- **Schema Exploration**: Get database schemas, tables, views, columns, and distinct values
+- **Secure Authentication**: API key-based authentication for database access
+- **Session Management**: HTTP-based transport with session handling
+- **Error Monitoring**: Integrated Sentry for error tracking and performance monitoring
 - **Docker Containerization**: Easy deployment in containerized environments
 
 ## Prerequisites
 
 - Node.js 18+
 - TypeScript
-- Access to on-premise database
-- Microsoft Copilot 365 subscription (for integration features)
+- Access to on-premise MSSQL database
+- Docker and Docker Compose (for containerized deployment)
 
 ## Installation
 
@@ -32,30 +33,29 @@ This project implements a Model Context Protocol (MCP) server that provides secu
 
 ## Configuration
 
-### Database Connection
+### Environment Variables
 
-Update the database connection settings in `src/index.ts`:
-
-```typescript
-// TODO: Implement actual database connection
-const dbConfig = {
-  host: process.env.DB_HOST,
-  port: process.env.DB_PORT,
-  database: process.env.DB_NAME,
-  username: process.env.DB_USER,
-  password: process.env.DB_PASSWORD
-};
-```
-
-### Microsoft Copilot Integration
-
-Set up your Microsoft Copilot credentials:
+Set the following environment variables:
 
 ```bash
-export COPILOT_CLIENT_ID="your-client-id"
-export COPILOT_CLIENT_SECRET="your-client-secret"
-export COPILOT_TENANT_ID="your-tenant-id"
+# Database Configuration
+DB_USER=your-db-user
+DB_PASSWORD=your-db-password
+DB_SERVER=your-db-server
+DB_NAME=your-db-name
+TRUST_CERT=false  # Set to true for self-signed certificates
+
+# API Configuration
+API_KEY=your-static-api-key
+PORT=3000  # Optional, defaults to 3000
+
+# Monitoring
+SENTRY_DSN=your-sentry-dsn  # Optional, for error tracking
 ```
+
+### Database Connection
+
+The server connects to an MSSQL database using the `mssql` package. Ensure your database server allows connections from the server host.
 
 ## Usage
 
@@ -72,32 +72,66 @@ npm run build
 npm start
 ```
 
+The server will start on the specified port (default 3000) and listen for MCP requests at `/mcp` endpoint.
+
 ## Available Tools
 
-### query_database
-Execute SQL queries against the configured database.
+### get_databases
+Get a list of all databases on the server.
+
+**Parameters:** None
+
+### get_tables
+Get a list of all tables in the specified database, organized by schema.
+
+**Parameters:**
+- `database` (string, optional): Database name (defaults to configured default)
+
+### get_list_views
+Get a list of all views in the specified database, organized by schema.
+
+**Parameters:**
+- `database` (string, optional): Database name (defaults to configured default)
+
+### get_columns
+Get column information for a specific table or view.
+
+**Parameters:**
+- `table` (string): Fully qualified table name (schema.table)
+- `database` (string, optional): Database name (defaults to configured default)
+
+### run_sql
+Execute any SQL command on the database.
 
 **Parameters:**
 - `query` (string): SQL query to execute
-- `database` (string, optional): Database name (defaults to configured default)
 
-### get_database_schema
-Retrieve schema information for a database table.
-
-**Parameters:**
-- `table` (string): Table name to get schema for
-- `database` (string, optional): Database name (defaults to configured default)
-
-### microsoft_copilot_integration
-Process data using Microsoft Copilot 365.
+### execute_stored_procedure
+Execute a stored procedure with parameters.
 
 **Parameters:**
-- `action` (string): Action to perform (analyze, summarize, generate)
-- `data` (string): Data to process with Copilot
+- `procedure` (string): Stored procedure name
+- `parameters` (array, optional): Array of parameter objects with `name` and `value`
+- `database` (string, optional): Database name (defaults to configured default)
+
+### get_table_joins
+Get join information from 'Joins' extended property on tables.
+
+**Parameters:**
+- `table` (string, optional): Specific table name (if not provided, returns joins for all tables)
+- `database` (string): Database name
+
+### get_distinct_values
+Get distinct values from a column, capped at 50 unique values, plus the total count.
+
+**Parameters:**
+- `table` (string): Fully qualified table name (schema.table)
+- `column` (string): Column name
+- `database` (string, optional): Database name (defaults to configured default)
 
 ## Docker Deployment
 
-This project includes a full Docker environment with MS SQL Server for testing.
+The project includes Docker support for easy deployment.
 
 ### Prerequisites
 
@@ -106,66 +140,35 @@ This project includes a full Docker environment with MS SQL Server for testing.
 ### Quick Start
 
 1. Clone the repository
-2. Copy the environment file:
-   ```bash
-   cp .env.example .env  # If you have .env.example, otherwise .env is already created
-   ```
+2. Configure environment variables in `.env` file
 3. Start the services:
    ```bash
    docker-compose up --build
    ```
 
-This will start:
-- MS SQL Server on port 1433 with dummy data
-- MCP Server on port 3000
+This will start the MCP server in a container.
 
-### Services
-
-- **sqlserver**: MS SQL Server with TestDB database and YourTable with 10 dummy records
-- **mcp-server**: The MCP server application
-
-### Environment Variables
-
-Configure the following in `.env`:
+### Environment Variables for Docker
 
 ```bash
 # Database
-DB_USER=sa
-DB_PASSWORD=YourStrong!Passw0rd
-DB_SERVER=sqlserver
-DB_NAME=TestDB
+DB_USER=your-db-user
+DB_PASSWORD=your-db-password
+DB_SERVER=your-db-server
+DB_NAME=your-db-name
+TRUST_CERT=false
 
 # API
-API_KEY=test-api-key
+API_KEY=your-api-key
+PORT=3000
 
-# SSL
-TRUST_CERT=true
-```
-
-### Testing the Server
-
-Once running, you can test the MCP server:
-
-```bash
-curl -X POST http://localhost:3000/mcp \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer test-api-key" \
-  -d '{"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}'
-```
-
-### Stopping the Environment
-
-```bash
-docker-compose down
+# Monitoring
+SENTRY_DSN=your-sentry-dsn
 ```
 
 ## MCP Client Integration
 
-This server can be used with any MCP-compatible client, including:
-
-- Microsoft Copilot Studio
-- Claude Desktop
-- Custom MCP clients
+This server can be used with any MCP-compatible client.
 
 ### Configuration for Claude Desktop
 
@@ -176,18 +179,29 @@ Add to your `claude_desktop_config.json`:
   "mcpServers": {
     "database-server": {
       "command": "node",
-      "args": ["/path/to/dist/index.js"]
+      "args": ["/path/to/project/dist/index.js"]
     }
   }
 }
 ```
 
+### Testing the Server
+
+You can test the server using curl:
+
+```bash
+curl -X POST http://localhost:3000/mcp \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your-api-key" \
+  -d '{"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}'
+```
+
 ## Security Considerations
 
-- All database queries are logged for audit purposes
-- Authentication is required for all operations
-- Sensitive data is encrypted in transit and at rest
-- Access controls are enforced at the database level
+- Authentication is required for all operations using Bearer token
+- Database credentials are stored securely as environment variables
+- All queries are logged for audit purposes
+- Sensitive data should be handled according to your organization's security policies
 
 ## Development
 
@@ -196,36 +210,46 @@ Add to your `claude_desktop_config.json`:
 ```
 src/
   index.ts          # Main entry point
-  server.ts         # MCP server implementation
+  server.ts         # MCP server implementation with HTTP transport
   config.ts         # Configuration and environment variables
-  db.ts             # Database connection and pool management
-  auth.ts           # Authentication logic
-  tools.ts          # MCP tool handlers
-dist/               # Compiled JavaScript
-.vscode/
-  mcp.json         # MCP configuration
-.github/
-  copilot-instructions.md  # Project documentation
-Dockerfile          # Docker build file
+  db.ts             # Database connection pool management
+  auth.ts           # API key authentication
+  tools.ts          # MCP tool definitions and handlers
+dist/               # Compiled JavaScript output
+Dockerfile          # Docker build configuration
 docker-compose.yml  # Multi-service Docker setup
-init-db.sql         # Database initialization script
-.env               # Environment variables
 ```
 
 ### Adding New Tools
 
-1. Define the tool in the `ListToolsRequestSchema` handler
-2. Implement the tool logic in the `CallToolRequestSchema` handler
-3. Add proper error handling and validation
+1. Define the tool schema in the `tools` array in `tools.ts`
+2. Implement the handler function
+3. Add the handler to the `toolHandlers` map
+4. Update the `handleToolCall` function if needed
 
-## Contributing
+### Building and Running
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests
-5. Submit a pull request
+```bash
+# Development with auto-reload
+npm run dev
 
-## License
+# Build for production
+npm run build
 
-MIT License - see LICENSE file for details
+# Run production build
+npm start
+
+# Clean build artifacts
+npm run clean
+```
+
+## Monitoring and Logging
+
+The server integrates with Sentry for error tracking and performance monitoring. Configure `SENTRY_DSN` to enable.
+
+All database operations are logged to the console for debugging and audit purposes.
+
+
+
+
+
