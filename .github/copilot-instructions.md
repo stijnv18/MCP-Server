@@ -1,124 +1,75 @@
-<!-- Use this file to provide workspace-specific custom instructions to Copilot. For more details, visit https://code.visualstudio.com/docs/copilot/copilot-customization#_use-a-githubcopilotinstructionsmd-file -->
-- [x] Verify that the copilot-instructions.md file in the .github directory is created.
+# MCP Server Project Instructions
 
-- [x] Clarify Project Requirements
-	<!-- Ask for project type, language, and frameworks if not specified. Skip if already provided. -->
+This is a Model Context Protocol (MCP) server project for secure on-premise MSSQL database access.
 
-- [x] Scaffold the Project
-	<!--
-	Ensure that the previous step has been marked as completed.
-	Call project setup tool with projectType parameter.
-	Run scaffolding command to create project files and folders.
-	Use '.' as the working directory.
-	If no appropriate projectType is available, search documentation using available tools.
-	Otherwise, create the project structure manually using available file creation tools.
-	-->
-	- [x] Update copilot-instructions.md with MCP SDK references
-	- [x] Create TypeScript MCP server project structure
-	- [x] Install MCP SDK and dependencies
-	- [x] Create mcp.json configuration file
-	- [x] Set up basic server implementation
+## Project Overview
 
-- [ ] Customize the Project
-	<!--
-	Verify that all previous steps have been completed successfully and you have marked the step as completed.
-	Develop a plan to modify codebase according to user requirements.
-	Apply modifications using appropriate tools and user-provided references.
-	Skip this step for "Hello World" projects.
-	-->
-	- [ ] Implement database connection and authentication
-	- [ ] Add Microsoft Copilot 365 integration
-	- [ ] Configure Docker containerization
-	- [ ] Add comprehensive error handling and logging
+- **Type**: MCP Server
+- **Language**: TypeScript
+- **Framework**: Node.js with @modelcontextprotocol/sdk
+- **Database**: MSSQL (on-premise)
+- **Authentication**: API key-based
+- **Transport**: HTTP with session management
+- **Monitoring**: Sentry integration
 
-- [ ] Customize the Project
-	<!--
-	Verify that all previous steps have been completed successfully and you have marked the step as completed.
-	Develop a plan to modify codebase according to user requirements.
-	Apply modifications using appropriate tools and user-provided references.
-	Skip this step for "Hello World" projects.
-	-->
+## Key Components
 
-- [ ] Install Required Extensions
-	<!-- ONLY install extensions provided mentioned in the get_project_setup_info. Skip this step otherwise and mark as completed. -->
-	- [x] Install TypeScript extension for VS Code
+- `src/index.ts`: Main entry point
+- `src/server.ts`: MCP server implementation with HTTP transport
+- `src/tools.ts`: MCP tool definitions and handlers
+- `src/db.ts`: Database connection pool management
+- `src/auth.ts`: API key authentication
+- `src/config.ts`: Configuration and environment variables
 
-- [ ] Compile the Project
-	<!--
-	Verify that all previous steps have been completed.
-	Install any missing dependencies.
-	Run diagnostics and resolve any issues.
-	Check for markdown files in project folder for relevant instructions on how to do this.
-	-->
+## Available Tools
 
-- [ ] Create and Run Task
-	<!--
-	Verify that all previous steps have been completed.
-	Check https://code.visualstudio.com/docs/debugtest/tasks to determine if the project needs a task. If so, use the create_and_run_task to create and launch a task based on package.json, README.md, and project structure.
-	Skip this step otherwise.
-	 -->
+The server provides these MCP tools:
+- `get_databases`: List all databases
+- `get_tables`: Get tables by schema
+- `get_list_views`: Get views by schema
+- `get_columns`: Get column info for a table
+- `run_sql`: Execute SQL queries
+- `execute_stored_procedure`: Run stored procedures
+- `get_table_joins`: Get join information from extended properties
+- `get_distinct_values`: Get distinct values from a column
 
-- [ ] Launch the Project
-	<!--
-	Verify that all previous steps have been completed.
-	Prompt user for debug mode, launch only if confirmed.
-	 -->
+## Environment Variables
 
-- [ ] Ensure Documentation is Complete
-	<!--
-	Verify that all previous steps have been completed.
-	Verify that README.md and the copilot-instructions.md file in the .github directory exists and contains current project information.
-	Clean up the copilot-instructions.md file in the .github directory by removing all HTML comments.
-	 -->
+Required environment variables:
+- `DB_USER`, `DB_PASSWORD`, `DB_SERVER`, `DB_NAME`: Database connection
+- `API_KEY`: For authentication
+- `SENTRY_DSN`: For error monitoring (optional)
+- `PORT`: Server port (default 3000)
 
-<!--
-## Execution Guidelines
-PROGRESS TRACKING:
-- If any tools are available to manage the above todo list, use it to track progress through this checklist.
-- After completing each step, mark it complete and add a summary.
-- Read current todo list status before starting each new step.
+## Development Guidelines
 
-COMMUNICATION RULES:
-- Avoid verbose explanations or printing full command outputs.
-- If a step is skipped, state that briefly (e.g. "No extensions needed").
-- Do not explain project structure unless asked.
-- Keep explanations concise and focused.
+- Use TypeScript for all new code
+- Follow MCP protocol specifications
+- Implement proper error handling with Sentry
+- Log all database operations
+- Use connection pooling for database access
+- Validate all inputs and handle authentication
 
-DEVELOPMENT RULES:
-- Use '.' as the working directory unless user specifies otherwise.
-- Avoid adding media or external links unless explicitly requested.
-- Use placeholders only with a note that they should be replaced.
-- Use VS Code API tool only for VS Code extension projects.
-- Once the project is created, it is already opened in Visual Studio Code—do not suggest commands to open this project in Visual Studio again.
-- If the project setup information has additional rules, follow them strictly.
+## Building and Running
 
-FOLDER CREATION RULES:
-- Always use the current directory as the project root.
-- If you are running any terminal commands, use the '.' argument to ensure that the current working directory is used ALWAYS.
-- Do not create a new folder unless the user explicitly requests it besides a .vscode folder for a tasks.json file.
-- If any of the scaffolding commands mention that the folder name is not correct, let the user know to create a new folder with the correct name and then reopen it again in vscode.
+```bash
+npm install
+npm run build
+npm start
+```
 
-EXTENSION INSTALLATION RULES:
-- Only install extension specified by the get_project_setup_info tool. DO NOT INSTALL any other extensions.
+For development:
+```bash
+npm run dev
+```
 
-PROJECT CONTENT RULES:
-- If the user has not specified project details, assume they want a "Hello World" project as a starting point.
-- Avoid adding links of any type (URLs, files, folders, etc.) or integrations that are not explicitly required.
-- Avoid generating images, videos, or any other media files unless explicitly requested.
-- If you need to use any media assets as placeholders, let the user know that these are placeholders and should be replaced with the actual assets later.
-- Ensure all generated components serve a clear purpose within the user's requested workflow.
-- If a feature is assumed but not confirmed, prompt the user for clarification before including it.
-- If you are working on a VS Code extension, use the VS Code API tool with a query to find relevant VS Code API references and samples related to that query.
+## Docker Support
 
-TASK COMPLETION RULES:
-- Your task is complete when:
-  - Project is successfully scaffolded and compiled without errors
-  - copilot-instructions.md file in the .github directory exists in the project
-  - README.md file exists and is up to date
-  - User is provided with clear instructions to debug/launch the project
+The project includes Docker configuration for containerized deployment.
 
-Before starting a new task in the above plan, update progress in the plan.
--->
-- Work through each checklist item systematically.
-- Keep communication concise and focused.
-- Follow development best practices.
+## Security Notes
+
+- All requests require Bearer token authentication
+- Database credentials stored as environment variables
+- Queries are logged for audit purposes
+- Use HTTPS in production
