@@ -121,13 +121,78 @@ Get join information from 'Joins' extended property on tables.
 - `table` (string, optional): Specific table name (if not provided, returns joins for all tables)
 - `database` (string): Database name
 
-### get_distinct_values
-Get distinct values from a column, capped at 50 unique values, plus the total count.
+### get_database_schema
+Get schema information for specific databases (BC_VLTS_DATA or AIM_KANEKA).
 
 **Parameters:**
-- `table` (string): Fully qualified table name (schema.table)
-- `column` (string): Column name
-- `database` (string, optional): Database name (defaults to configured default)
+- `database` (string): Database name (BC_VLTS_DATA or AIM_KANEKA)
+- `include_views` (boolean, optional): Include views in schema (default: true)
+- `include_tables` (boolean, optional): Include tables in schema (default: true)
+
+### search_assets
+Search for assets in BC_VLTS_DATA.BCAssetPropertiesViewByNameBCE with various filters.
+
+**Parameters:**
+- `tag_type` (string, optional): Asset tag type (e.g., 'V', 'P', 'T')
+- `sequence_number` (string, optional): Asset sequence number (e.g., '2210 H')
+- `department` (string, optional): 3-character department code (MOD, EPE, MSE, SUP)
+- `project_number` (string, optional): Project number to filter assets
+- `sap_equipment_number` (string, optional): SAP equipment number
+- `include_retired` (boolean, optional): Include retired/decommissioned assets (default: false)
+- `limit` (number, optional): Maximum number of results (default: 50)
+
+### search_projects
+Search for projects in BC_VLTS_DATA.ProjectPropertiesView.
+
+**Parameters:**
+- `project_number` (string, optional): Project number (supports partial matching)
+- `project_type` (string, optional): Filter by type ('RFE' for investments, 'all' for all)
+- `limit` (number, optional): Maximum number of results (default: 50)
+
+### search_documents
+Search for documents in AIM_KANEKA document tables.
+
+**Parameters:**
+- `title` (string, optional): Document title to search for
+- `project_number` (string, optional): Project number associated with documents
+- `table` (string, optional): Document table ('documentRevisionCustom', 'documentRevisionCustom1', or 'both')
+- `limit` (number, optional): Maximum number of results (default: 50)
+
+### get_asset_details
+Get detailed asset information by tag number or SAP equipment number.
+
+**Parameters:**
+- `identifier` (string): Asset identifier (tag number like 'V 2210 H EPE' or SAP equipment number)
+- `identifier_type` (string, optional): Type of identifier ('tag_number' or 'sap_equipment')
+
+### get_project_details
+Get detailed project information by project number.
+
+**Parameters:**
+- `project_number` (string): Project number to get details for
+
+### get_related_assets
+Get all assets related to a specific project.
+
+**Parameters:**
+- `project_number` (string): Project number to find related assets for
+- `include_retired` (boolean, optional): Include retired assets (default: false)
+- `limit` (number, optional): Maximum number of results (default: 100)
+
+### get_related_documents
+Get documents related to a specific project or asset.
+
+**Parameters:**
+- `project_number` (string, optional): Project number to find related documents for
+- `asset_tag` (string, optional): Asset tag to find related documents for
+- `table` (string, optional): Document table to search
+- `limit` (number, optional): Maximum number of results (default: 50)
+
+### validate_asset_tag
+Validate and parse an asset tag number into its components.
+
+**Parameters:**
+- `tag_number` (string): Complete asset tag number (e.g., 'V 2210 H EPE')
 
 ## Docker Deployment
 

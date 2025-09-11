@@ -126,25 +126,261 @@ export const tools = [
     }
   },
   {
-    name: "get_distinct_values",
-    description: "Get distinct values from a column, capped at 50 unique values, plus the total count",
+    name: "search_assets",
+    description: "Search for assets in BC_VLTS_DATA.BCAssetPropertiesViewByNameBCE with various filters",
     inputSchema: {
       type: "object",
       properties: {
+        tag_type: {
+          type: "string",
+          description: "Asset tag type (e.g., 'V', 'P', 'T')"
+        },
+        sequence_number: {
+          type: "string",
+          description: "Asset sequence number (e.g., '2210 H')"
+        },
+        department: {
+          type: "string",
+          description: "3-character department code (MOD, EPE, MSE, SUP)"
+        },
+        project_number: {
+          type: "string",
+          description: "Project number to filter assets"
+        },
+        sap_equipment_number: {
+          type: "string",
+          description: "SAP equipment number"
+        },
+        asset_category: {
+          type: "string",
+          description: "Asset category for filtering"
+        },
+        asset_class: {
+          type: "string",
+          description: "Asset class for filtering"
+        },
+        asset_subclass: {
+          type: "string",
+          description: "Asset subclass for filtering"
+        },
+        functional_location: {
+          type: "string",
+          description: "Functional location for process-related searches"
+        },
+        unit: {
+          type: "string",
+          description: "Unit for process-related searches"
+        },
+        process: {
+          type: "string",
+          description: "Process for process-related searches"
+        },
+        subprocess: {
+          type: "string",
+          description: "Subprocess for process-related searches"
+        },
+        in_workflow: {
+          type: "boolean",
+          description: "Filter assets that are in workflow ([c_psApproval_WFStateApproval] is not null)"
+        },
+        include_retired: {
+          type: "boolean",
+          description: "Include retired/decommissioned assets (default: false)",
+          default: false
+        },
+        limit: {
+          type: "number",
+          description: "Maximum number of results to return (default: 50)",
+          default: 50
+        }
+      }
+    }
+  },
+  {
+    name: "search_projects",
+    description: "Search for projects in BC_VLTS_DATA.ProjectPropertiesView",
+    inputSchema: {
+      type: "object",
+      properties: {
+        project_number: {
+          type: "string",
+          description: "Project number (supports partial matching with %)"
+        },
+        project_type: {
+          type: "string",
+          description: "Filter by project type ('RFE' for investments, 'all' for all)",
+          enum: ["RFE", "all"]
+        },
+        project_state: {
+          type: "string",
+          description: "Filter by project state ('open' for active projects, 'closed' for completed, 'all' for all)",
+          enum: ["open", "closed", "all"],
+          default: "all"
+        },
+        is_plant_environment: {
+          type: "boolean",
+          description: "Filter for plant/as-built environment projects ([PROJECT NUMBER]='-')"
+        },
+        limit: {
+          type: "number",
+          description: "Maximum number of results to return (default: 50)",
+          default: 50
+        }
+      }
+    }
+  },
+  {
+    name: "search_documents",
+    description: "Search for documents in AIM_KANEKA document tables",
+    inputSchema: {
+      type: "object",
+      properties: {
+        title: {
+          type: "string",
+          description: "Document title to search for"
+        },
+        project_number: {
+          type: "string",
+          description: "Project number associated with documents"
+        },
         table: {
           type: "string",
-          description: "The fully qualified table name (schema.table) to get distinct values from"
+          description: "Document table to search (documentRevisionCustom or documentRevisionCustom1)",
+          enum: ["documentRevisionCustom", "documentRevisionCustom1", "both"],
+          default: "both"
         },
-        column: {
-          type: "string",
-          description: "The column name to get distinct values from"
-        },
-        database: {
-          type: "string",
-          description: "The database to query (default is current database)"
+        limit: {
+          type: "number",
+          description: "Maximum number of results to return (default: 50)",
+          default: 50
         }
       },
-      required: ["table", "column"]
+      required: []
+    }
+  },
+  {
+    name: "get_asset_details",
+    description: "Get detailed asset information by tag number or SAP equipment number",
+    inputSchema: {
+      type: "object",
+      properties: {
+        identifier: {
+          type: "string",
+          description: "Asset identifier (tag number like 'V 2210 H EPE' or SAP equipment number)"
+        },
+        identifier_type: {
+          type: "string",
+          description: "Type of identifier provided",
+          enum: ["tag_number", "sap_equipment"],
+          default: "tag_number"
+        }
+      },
+      required: ["identifier"]
+    }
+  },
+  {
+    name: "get_project_details",
+    description: "Get detailed project information by project number",
+    inputSchema: {
+      type: "object",
+      properties: {
+        project_number: {
+          type: "string",
+          description: "Project number to get details for"
+        }
+      },
+      required: ["project_number"]
+    }
+  },
+  {
+    name: "get_related_assets",
+    description: "Get all assets related to a specific project",
+    inputSchema: {
+      type: "object",
+      properties: {
+        project_number: {
+          type: "string",
+          description: "Project number to find related assets for"
+        },
+        include_retired: {
+          type: "boolean",
+          description: "Include retired/decommissioned assets (default: false)",
+          default: false
+        },
+        limit: {
+          type: "number",
+          description: "Maximum number of results to return (default: 100)",
+          default: 100
+        }
+      },
+      required: ["project_number"]
+    }
+  },
+  {
+    name: "get_related_documents",
+    description: "Get documents related to a specific project or asset",
+    inputSchema: {
+      type: "object",
+      properties: {
+        project_number: {
+          type: "string",
+          description: "Project number to find related documents for"
+        },
+        asset_tag: {
+          type: "string",
+          description: "Asset tag to find related documents for"
+        },
+        table: {
+          type: "string",
+          description: "Document table to search",
+          enum: ["documentRevisionCustom", "documentRevisionCustom1", "both"],
+          default: "both"
+        },
+        limit: {
+          type: "number",
+          description: "Maximum number of results to return (default: 50)",
+          default: 50
+        }
+      }
+    }
+  },
+  {
+    name: "validate_asset_tag",
+    description: "Validate and parse an asset tag number into its components",
+    inputSchema: {
+      type: "object",
+      properties: {
+        tag_number: {
+          type: "string",
+          description: "Complete asset tag number (e.g., 'V 2210 H EPE')"
+        }
+      },
+      required: ["tag_number"]
+    }
+  },
+  {
+    name: "get_database_schema",
+    description: "Get schema information for specific databases (BC_VLTS_DATA or AIM_KANEKA)",
+    inputSchema: {
+      type: "object",
+      properties: {
+        database: {
+          type: "string",
+          description: "Database name",
+          enum: ["BC_VLTS_DATA", "AIM_KANEKA"]
+        },
+        include_views: {
+          type: "boolean",
+          description: "Include views in schema (default: true)",
+          default: true
+        },
+        include_tables: {
+          type: "boolean",
+          description: "Include tables in schema (default: true)",
+          default: true
+        }
+      },
+      required: ["database"]
     }
   }
 ];
@@ -566,6 +802,552 @@ export async function getDistinctValuesHandler(args: any) {
   }
 }
 
+// New specialized handler functions for BC_VLTS_DATA and AIM_KANEKA
+export async function searchAssetsHandler(args: any) {
+  const {
+    tag_type,
+    sequence_number,
+    department,
+    project_number,
+    sap_equipment_number,
+    asset_category,
+    asset_class,
+    asset_subclass,
+    functional_location,
+    unit,
+    process,
+    subprocess,
+    in_workflow,
+    include_retired = false,
+    limit = 50
+  } = args;
+
+  try {
+    const pool = getPool();
+    let query = `SELECT TOP ${limit} * FROM [BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE] WHERE 1=1`;
+
+    if (tag_type) {
+      query += ` AND [TAG TYPE] = @tag_type`;
+    }
+
+    if (sequence_number) {
+      query += ` AND [SEQUENCE NUMBER] = @sequence_number`;
+    }
+
+    if (department) {
+      query += ` AND [DEPARTMENT] = @department`;
+    }
+
+    if (project_number) {
+      query += ` AND [PROJECT NUMBER] LIKE @project_number`;
+    }
+
+    if (sap_equipment_number) {
+      query += ` AND [SAP EQUIPMENT NUMBER] = @sap_equipment_number`;
+    }
+
+    if (asset_category) {
+      query += ` AND [ASSET CATEGORY] = @asset_category`;
+    }
+
+    if (asset_class) {
+      query += ` AND [ASSET CLASS] = @asset_class`;
+    }
+
+    if (asset_subclass) {
+      query += ` AND [ASSET SUB CLASS] = @asset_subclass`;
+    }
+
+    if (functional_location) {
+      query += ` AND [FUNCTIONAL LOCATION] LIKE @functional_location`;
+    }
+
+    if (unit) {
+      query += ` AND [UNIT] LIKE @unit`;
+    }
+
+    if (process) {
+      query += ` AND [PROCESS] LIKE @process`;
+    }
+
+    if (subprocess) {
+      query += ` AND [SUB PROCESS] LIKE @subprocess`;
+    }
+
+    if (in_workflow === true) {
+      query += ` AND [c_psApproval_WFStateApproval] IS NOT NULL`;
+    } else if (in_workflow === false) {
+      query += ` AND [c_psApproval_WFStateApproval] IS NULL`;
+    }
+
+    if (!include_retired) {
+      query += ` AND [STATUS] != 'retired'`;
+    }
+
+    console.log(`Executing query: ${query}`);
+    const result = await pool.request()
+      .input('tag_type', tag_type || '')
+      .input('sequence_number', sequence_number || '')
+      .input('department', department || '')
+      .input('project_number', project_number ? `%${project_number}%` : '')
+      .input('sap_equipment_number', sap_equipment_number || '')
+      .input('asset_category', asset_category || '')
+      .input('asset_class', asset_class || '')
+      .input('asset_subclass', asset_subclass || '')
+      .input('functional_location', functional_location ? `%${functional_location}%` : '')
+      .input('unit', unit ? `%${unit}%` : '')
+      .input('process', process ? `%${process}%` : '')
+      .input('subprocess', subprocess ? `%${subprocess}%` : '')
+      .query(query);
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Found ${result.recordset.length} assets:\n${JSON.stringify(result.recordset, null, 2)}`
+        }
+      ]
+    };
+  } catch (error) {
+    const sentryDsn = process.env.SENTRY_DSN || 'your-sentry-dsn-here';
+    if (sentryDsn && sentryDsn !== 'your-sentry-dsn-here') {
+      Sentry.captureException(error);
+    }
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Error searching assets: ${error instanceof Error ? error.message : String(error)}`
+        }
+      ]
+    };
+  }
+}
+
+export async function searchProjectsHandler(args: any) {
+  const { project_number, project_type, project_state = 'all', is_plant_environment, limit = 50 } = args;
+
+  try {
+    const pool = getPool();
+    let query = `SELECT TOP ${limit} * FROM [BC_VLTS_DATA].[dbo].[ProjectPropertiesView] WHERE 1=1`;
+
+    if (project_number) {
+      query += ` AND [ProjectNumber] LIKE @project_number`;
+    }
+
+    if (project_type === 'RFE') {
+      query += ` AND [ProjectNumber] LIKE 'RFE-%'`;
+    }
+
+    if (project_state === 'open') {
+      query += ` AND [State] NOT IN ('Closed', 'discontinued')`;
+    } else if (project_state === 'closed') {
+      query += ` AND [State] IN ('Closed', 'discontinued')`;
+    }
+
+    if (is_plant_environment === true) {
+      query += ` AND [ProjectNumber] = '-'`;
+    } else if (is_plant_environment === false) {
+      query += ` AND [ProjectNumber] != '-'`;
+    }
+
+    console.log(`Executing query: ${query}`);
+    const result = await pool.request()
+      .input('project_number', project_number ? `%${project_number}%` : '')
+      .query(query);
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Found ${result.recordset.length} projects:\n${JSON.stringify(result.recordset, null, 2)}`
+        }
+      ]
+    };
+  } catch (error) {
+    const sentryDsn = process.env.SENTRY_DSN || 'your-sentry-dsn-here';
+    if (sentryDsn && sentryDsn !== 'your-sentry-dsn-here') {
+      Sentry.captureException(error);
+    }
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Error searching projects: ${error instanceof Error ? error.message : String(error)}`
+        }
+      ]
+    };
+  }
+}
+
+export async function searchDocumentsHandler(args: any) {
+  const { title, project_number, table = 'both', limit = 50 } = args;
+
+  try {
+    const pool = getPool();
+    let query = '';
+    const tables = table === 'both' ? ['documentRevisionCustom', 'documentRevisionCustom1'] : [table];
+
+    for (const tbl of tables) {
+      if (query) query += ' UNION ALL ';
+      query += `SELECT TOP ${limit} * FROM [AIM_KANEKA].[dbo].[${tbl}] WHERE 1=1`;
+
+      if (title) {
+        query += ` AND [c_psDocument_DocumentTitle] LIKE @title`;
+      }
+
+      if (project_number) {
+        query += ` AND [ProjectNumber] LIKE @project_number`;
+      }
+    }
+
+    console.log(`Executing query: ${query}`);
+    const result = await pool.request()
+      .input('title', title ? `%${title}%` : '')
+      .input('project_number', project_number ? `%${project_number}%` : '')
+      .query(query);
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Found ${result.recordset.length} documents:\n${JSON.stringify(result.recordset, null, 2)}`
+        }
+      ]
+    };
+  } catch (error) {
+    const sentryDsn = process.env.SENTRY_DSN || 'your-sentry-dsn-here';
+    if (sentryDsn && sentryDsn !== 'your-sentry-dsn-here') {
+      Sentry.captureException(error);
+    }
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Error searching documents: ${error instanceof Error ? error.message : String(error)}`
+        }
+      ]
+    };
+  }
+}
+
+export async function getAssetDetailsHandler(args: any) {
+  const { identifier, identifier_type = 'tag_number' } = args;
+
+  try {
+    const pool = getPool();
+    let query = '';
+
+    if (identifier_type === 'tag_number') {
+      // Parse tag number: "V 2210 H EPE" -> tag_type='V', sequence_number='2210 H', department='EPE'
+      const parts = identifier.trim().split(/\s+/);
+      if (parts.length >= 3) {
+        const tag_type = parts[0];
+        const department = parts[parts.length - 1];
+        const sequence_number = parts.slice(1, -1).join(' ');
+
+        query = `SELECT * FROM [BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE]
+                 WHERE [TAG TYPE] = @tag_type
+                 AND [SEQUENCE NUMBER] = @sequence_number
+                 AND [DEPARTMENT] = @department`;
+      } else {
+        throw new Error('Invalid tag number format. Expected: TAG_TYPE SEQUENCE_NUMBER DEPARTMENT');
+      }
+    } else {
+      query = `SELECT * FROM [BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE]
+               WHERE [SAP EQUIPMENT NUMBER] = @identifier`;
+    }
+
+    console.log(`Executing query: ${query}`);
+    const result = await pool.request()
+      .input('tag_type', identifier_type === 'tag_number' ? identifier.trim().split(/\s+/)[0] : '')
+      .input('sequence_number', identifier_type === 'tag_number' ? identifier.trim().split(/\s+/).slice(1, -1).join(' ') : '')
+      .input('department', identifier_type === 'tag_number' ? identifier.trim().split(/\s+/).pop() : '')
+      .input('identifier', identifier)
+      .query(query);
+
+    if (result.recordset.length === 0) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `No asset found with identifier: ${identifier}`
+          }
+        ]
+      };
+    }
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Asset details:\n${JSON.stringify(result.recordset[0], null, 2)}`
+        }
+      ]
+    };
+  } catch (error) {
+    const sentryDsn = process.env.SENTRY_DSN || 'your-sentry-dsn-here';
+    if (sentryDsn && sentryDsn !== 'your-sentry-dsn-here') {
+      Sentry.captureException(error);
+    }
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Error getting asset details: ${error instanceof Error ? error.message : String(error)}`
+        }
+      ]
+    };
+  }
+}
+
+export async function getProjectDetailsHandler(args: any) {
+  const { project_number } = args;
+
+  try {
+    const pool = getPool();
+    const query = `SELECT * FROM [BC_VLTS_DATA].[dbo].[ProjectPropertiesView]
+                   WHERE [ProjectNumber] LIKE @project_number`;
+
+    console.log(`Executing query: ${query}`);
+    const result = await pool.request()
+      .input('project_number', `%${project_number}%`)
+      .query(query);
+
+    if (result.recordset.length === 0) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `No project found with number: ${project_number}`
+          }
+        ]
+      };
+    }
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Project details:\n${JSON.stringify(result.recordset[0], null, 2)}`
+        }
+      ]
+    };
+  } catch (error) {
+    const sentryDsn = process.env.SENTRY_DSN || 'your-sentry-dsn-here';
+    if (sentryDsn && sentryDsn !== 'your-sentry-dsn-here') {
+      Sentry.captureException(error);
+    }
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Error getting project details: ${error instanceof Error ? error.message : String(error)}`
+        }
+      ]
+    };
+  }
+}
+
+export async function getRelatedAssetsHandler(args: any) {
+  const { project_number, include_retired = false, limit = 100 } = args;
+
+  try {
+    const pool = getPool();
+    let query = `SELECT TOP ${limit} * FROM [BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE]
+                 WHERE [PROJECT NUMBER] LIKE @project_number`;
+
+    if (!include_retired) {
+      query += ` AND [STATUS] != 'retired'`;
+    }
+
+    console.log(`Executing query: ${query}`);
+    const result = await pool.request()
+      .input('project_number', `%${project_number}%`)
+      .query(query);
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Found ${result.recordset.length} assets related to project ${project_number}:\n${JSON.stringify(result.recordset, null, 2)}`
+        }
+      ]
+    };
+  } catch (error) {
+    const sentryDsn = process.env.SENTRY_DSN || 'your-sentry-dsn-here';
+    if (sentryDsn && sentryDsn !== 'your-sentry-dsn-here') {
+      Sentry.captureException(error);
+    }
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Error getting related assets: ${error instanceof Error ? error.message : String(error)}`
+        }
+      ]
+    };
+  }
+}
+
+export async function getRelatedDocumentsHandler(args: any) {
+  const { project_number, asset_tag, table = 'both', limit = 50 } = args;
+
+  try {
+    const pool = getPool();
+    let query = '';
+    const tables = table === 'both' ? ['documentRevisionCustom', 'documentRevisionCustom1'] : [table];
+
+    for (const tbl of tables) {
+      if (query) query += ' UNION ALL ';
+      query += `SELECT TOP ${limit} * FROM [AIM_KANEKA].[dbo].[${tbl}] WHERE 1=1`;
+
+      if (project_number) {
+        query += ` AND [ProjectNumber] LIKE @project_number`;
+      }
+
+      if (asset_tag) {
+        query += ` AND [AssetTag] LIKE @asset_tag`;
+      }
+    }
+
+    console.log(`Executing query: ${query}`);
+    const result = await pool.request()
+      .input('project_number', project_number ? `%${project_number}%` : '')
+      .input('asset_tag', asset_tag ? `%${asset_tag}%` : '')
+      .query(query);
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Found ${result.recordset.length} related documents:\n${JSON.stringify(result.recordset, null, 2)}`
+        }
+      ]
+    };
+  } catch (error) {
+    const sentryDsn = process.env.SENTRY_DSN || 'your-sentry-dsn-here';
+    if (sentryDsn && sentryDsn !== 'your-sentry-dsn-here') {
+      Sentry.captureException(error);
+    }
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Error getting related documents: ${error instanceof Error ? error.message : String(error)}`
+        }
+      ]
+    };
+  }
+}
+
+export async function validateAssetTagHandler(args: any) {
+  const { tag_number } = args;
+
+  try {
+    const parts = tag_number.trim().split(/\s+/);
+    if (parts.length < 3) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Invalid tag format: ${tag_number}. Expected format: TAG_TYPE SEQUENCE_NUMBER DEPARTMENT (e.g., "V 2210 H EPE")`
+          }
+        ]
+      };
+    }
+
+    const tag_type = parts[0];
+    const department = parts[parts.length - 1];
+    const sequence_number = parts.slice(1, -1).join(' ');
+
+    // Validate department (should be 3 characters)
+    if (department.length !== 3) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Invalid department: ${department}. Department should be exactly 3 characters (MOD, EPE, MSE, SUP)`
+          }
+        ]
+      };
+    }
+
+    const reconstructed = `${tag_type} ${sequence_number} ${department}`;
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Tag validation successful:\n- Original: ${tag_number}\n- Tag Type: ${tag_type}\n- Sequence Number: ${sequence_number}\n- Department: ${department}\n- Reconstructed: ${reconstructed}\n- Valid: ${reconstructed === tag_number.trim()}`
+        }
+      ]
+    };
+  } catch (error) {
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Error validating asset tag: ${error instanceof Error ? error.message : String(error)}`
+        }
+      ]
+    };
+  }
+}
+
+export async function getDatabaseSchemaHandler(args: any) {
+  const { database, include_views = true, include_tables = true } = args;
+
+  try {
+    const pool = getPool();
+    let result = { tables: [], views: [] };
+
+    if (include_tables) {
+      const tablesQuery = `SELECT s.name AS schema_name, t.name AS table_name
+                           FROM [${database}].sys.tables t
+                           INNER JOIN [${database}].sys.schemas s ON t.schema_id = s.schema_id
+                           ORDER BY s.name, t.name`;
+
+      console.log(`Executing tables query: ${tablesQuery}`);
+      const tablesResult = await pool.request().query(tablesQuery);
+      result.tables = tablesResult.recordset;
+    }
+
+    if (include_views) {
+      const viewsQuery = `SELECT s.name AS schema_name, v.name AS view_name
+                          FROM [${database}].sys.views v
+                          INNER JOIN [${database}].sys.schemas s ON v.schema_id = s.schema_id
+                          ORDER BY s.name, v.name`;
+
+      console.log(`Executing views query: ${viewsQuery}`);
+      const viewsResult = await pool.request().query(viewsQuery);
+      result.views = viewsResult.recordset;
+    }
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Database schema for ${database}:\n${JSON.stringify(result, null, 2)}`
+        }
+      ]
+    };
+  } catch (error) {
+    const sentryDsn = process.env.SENTRY_DSN || 'your-sentry-dsn-here';
+    if (sentryDsn && sentryDsn !== 'your-sentry-dsn-here') {
+      Sentry.captureException(error);
+    }
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Error getting database schema: ${error instanceof Error ? error.message : String(error)}`
+        }
+      ]
+    };
+  }
+}
+
 // Handler map: tool name -> handler function
 const toolHandlers: Record<string, (args: any) => Promise<any>> = {
   get_list_views: getListViewsHandler,
@@ -576,6 +1358,15 @@ const toolHandlers: Record<string, (args: any) => Promise<any>> = {
   run_sql: runSqlHandler,
   get_table_joins: getTableJoinsHandler,
   get_distinct_values: getDistinctValuesHandler,
+  search_assets: searchAssetsHandler,
+  search_projects: searchProjectsHandler,
+  search_documents: searchDocumentsHandler,
+  get_asset_details: getAssetDetailsHandler,
+  get_project_details: getProjectDetailsHandler,
+  get_related_assets: getRelatedAssetsHandler,
+  get_related_documents: getRelatedDocumentsHandler,
+  validate_asset_tag: validateAssetTagHandler,
+  get_database_schema: getDatabaseSchemaHandler,
 };
 
 // Updated handleToolCall

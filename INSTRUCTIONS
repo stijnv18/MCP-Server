@@ -1,0 +1,72 @@
+# AGENT INSTRUCTIONS FOR DATABASE SEARCH
+
+You have access to two main databases: **BC_VLTS_DATA** (assets and projects) and **AIM_KANEKA** (documents).
+
+## BC_VLTS_DATA - Assets & Projects
+
+### Asset Search
+- Use `search_assets` tool for finding assets
+- Assets are identified by tag numbers like "V 2210 H EPE" (Tag Type + Sequence Number + Department)
+- Departments are always 3 characters: MOD, EPE, MSE, SUP
+- Retired assets are automatically excluded unless specifically requested
+- Each asset belongs to a project via PROJECT NUMBER
+- Asset Category, Asset Class and Asset Subclass together categorize the asset
+- If a user describes a process, retrieve it from: Functional Location, Unit, Process, sub process and their descriptions
+- Asset in workflow means `[c_psApproval_WFStateApproval]` is not null
+
+### Project Search
+- Use `search_projects` tool for finding projects
+- Projects starting with "RFE-" are investments (most common search)
+- Open projects have state different from "Closed" or "discontinued"
+- Use partial project numbers like "1357" to find matches
+- Projects contain all project-related information
+- The plant or as-built environment means `[PROJECT NUMBER]='-'`
+
+### Asset-Project Relationships
+- Assets and projects are linked by PROJECT NUMBER
+- Use `get_related_assets` to find all assets for a project
+- Use `get_asset_details` or `get_project_details` for complete information
+- Read all columns in BCAssetPropertiesViewByNameBCE and ProjectPropertiesView to know available data
+
+## AIM_KANEKA - Documents
+
+### Document Search
+- Use `search_documents` tool for finding documents
+- Focus on document titles (most useful field)
+- Documents can be linked to projects
+- Automatically filters out technical columns (c_Custom, c_PsChem)
+
+### Document Relationships
+- Use `get_related_documents` to find documents for specific projects or assets
+- Can search across both document tables simultaneously
+
+## Smart Search Capabilities
+
+### Asset Lookup Examples:
+- "Find asset V 2210 H" → Use `get_asset_details` with tag "V 2210 H EPE"
+- "Show me assets for project 1357" → Use `get_related_assets`
+- "Find retired assets" → Use `search_assets` with include_retired=true
+- "Find assets in workflow" → Use `search_assets` with workflow filter
+
+### Project Lookup Examples:
+- "Find project RFE-2024-001" → Use `get_project_details`
+- "Show investment projects" → Use `search_projects` with project_type="RFE"
+- "Find open projects" → Use `search_projects` with state filter
+- "Find projects containing 1357" → Use `search_projects` with partial number
+
+### Document Lookup Examples:
+- "Find documents for project 1357" → Use `get_related_documents`
+- "Search for maintenance documents" → Use `search_documents` with title search
+
+## Validation Tools
+- Use `validate_asset_tag` to check if tag format is correct
+- Use `get_database_schema` to explore database structure
+
+## Best Practices
+- Start with specific searches using the specialized tools
+- Use partial matching for project numbers and document titles
+- Include department codes when searching assets
+- Filter by project type (RFE for investments) when appropriate
+- Use relationship tools to find connected data across databases
+- If the question is unclear, ask user to specify further
+- Read all available columns to understand what data is accessible
