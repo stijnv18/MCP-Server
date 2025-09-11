@@ -124,6 +124,28 @@ export const tools = [
       },
       required: ["database"]
     }
+  },
+  {
+    name: "get_distinct_values",
+    description: "Get distinct values from a column, capped at 50 unique values, plus the total count",
+    inputSchema: {
+      type: "object",
+      properties: {
+        table: {
+          type: "string",
+          description: "The fully qualified table name (schema.table) to get distinct values from"
+        },
+        column: {
+          type: "string",
+          description: "The column name to get distinct values from"
+        },
+        database: {
+          type: "string",
+          description: "The database to query (default is current database)"
+        }
+      },
+      required: ["table", "column"]
+    }
   }
 ];
 
@@ -497,6 +519,53 @@ export async function getTableJoinsHandler(args: any) {
   }
 }
 
+export async function getDistinctValuesHandler(args: any) {
+  const { table, column, database } = args;
+
+  try {
+    const pool = getPool();
+    let distinctQuery = `SELECT DISTINCT TOP 50 [${column}] FROM ${table}`;
+    let countQuery = `SELECT COUNT(DISTINCT [${column}]) AS total_count FROM ${table}`;
+    if (database) {
+      distinctQuery = `USE [${database}]; ${distinctQuery}`;
+      countQuery = `USE [${database}]; ${countQuery}`;
+    }
+    console.log(`Executing distinct query: ${distinctQuery}`);
+    const distinctResult = await pool.request().query(distinctQuery);
+    console.log(`Executing count query: ${countQuery}`);
+    const countResult = await pool.request().query(countQuery);
+    const distinctValues = distinctResult.recordset.map((row: any) => row[column]);
+    const totalCount = countResult.recordset[0].total_count;
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            table: table,
+            column: column,
+            distinct_values: distinctValues,
+            total_count: totalCount
+          }, null, 2)
+        }
+      ]
+    };
+  } catch (error) {
+    // Only capture exception if Sentry is initialized
+    const sentryDsn = process.env.SENTRY_DSN || 'your-sentry-dsn-here';
+    if (sentryDsn && sentryDsn !== 'your-sentry-dsn-here') {
+      Sentry.captureException(error);
+    }
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Error getting distinct values for column ${column} in table ${table}: ${error instanceof Error ? error.message : String(error)}`
+        }
+      ]
+    };
+  }
+}
+
 // Handler map: tool name -> handler function
 const toolHandlers: Record<string, (args: any) => Promise<any>> = {
   get_list_views: getListViewsHandler,
@@ -506,6 +575,7 @@ const toolHandlers: Record<string, (args: any) => Promise<any>> = {
   execute_stored_procedure: executeStoredProcedureHandler,
   run_sql: runSqlHandler,
   get_table_joins: getTableJoinsHandler,
+  get_distinct_values: getDistinctValuesHandler,
 };
 
 // Updated handleToolCall
