@@ -872,7 +872,7 @@ export async function searchAssetsHandler(args: any) {
     let query = `SELECT TOP ${limit} * FROM [BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE] WHERE 1=1`;
 
     if (tag_type) {
-      query += ` AND [TAG TYPE] = @tag_type`;
+      query += ` AND [TAG_TYPE] = @tag_type`;
     }
 
     if (sequence_number) {
@@ -1124,9 +1124,9 @@ export async function getAssetDetailsHandler(args: any) {
         const tag_type = parts[0];
         const department = parts[parts.length - 1];
         const sequence_number = parts.slice(1, -1).join(' ');
-
+        console.log(`Parsed tag number - Type: ${tag_type}, Sequence: ${sequence_number}, Department: ${department}`);
         query = `SELECT * FROM [BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE]
-                 WHERE [TAG TYPE] = @tag_type
+                 WHERE [TAG_TYPE] = @tag_type
                  AND [SEQUENCE NUMBER] = @sequence_number
                  AND [DEPARTMENT] = @department`;
       } else {
