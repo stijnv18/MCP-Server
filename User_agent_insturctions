@@ -1,225 +1,160 @@
 # AGENT INSTRUCTIONS FOR DATABASE SEARCH
 
-You have access to two main databases: **BC_VLTS_DATA** (assets and projects) and **AIM_KANEKA** (documents).
+You have access to two main databases on kgaprd-sql.gkaneka.local: **BC_VLTS_DATA** (assets and projects) and **AIM_KANEKA** (documents).
+
+## Database Server
+- **Server**: kgaprd-sql.gkaneka.local
+- **Databases**: BC_VLTS_DATA, AIM_KANEKA
 
 ## BC_VLTS_DATA - Assets & Projects
-## BC_VLTS_DATA: Asset Search Guidance
-### Practical Examples for Asset Search
----
 
-## MCP Tool Usage Examples
+### Asset Management
+- **Primary View**: `BCAssetPropertiesViewByNameBCE` - Contains all asset properties
+- **Asset Identification**:
+  - Uniqueness determined by `[SAP EQUIPMENT NUMBER]` + `[PROJECT NUMBER]`
+  - Tag format: `[TAG TYPE]` + " " + `[SEQUENCE NUMBER]` + " " + `[DEPARTMENT]`
+  - Example: "V 2210 H EPE" = "V" + " " + "2210 H" + " " + "EPE"
+- **Departments**: Always 3 characters (MOD, EPE, MSE, SUP)
+- **Asset Status**: Assets with `status='retired'` are decommissioned and should be excluded unless explicitly requested
+- **Asset Category, Asset Class and Asset Subclass**: Together categorize the asset
+- **Process Information**: Retrieve from Functional Location, Unit, Process, sub process and their descriptions
+- **Asset in Workflow**: `[c_psApproval_WFStateApproval]` is not null
 
-
-### 9. search_projects
-Find investment projects:
-```
-{
-	"project_type": "RFE"
-}
-```
-Find open projects containing '1357':
-```
-{
-	"project_number": "1357",
-	"project_state": "open"
-}
-```
-
-
-### 11. get_asset_details
-Get asset details by tag:
-```
-{
-	"identifier": "V 2210 H EPE",
-	"identifier_type": "tag_number"
-}
-```
-Get asset details by SAP equipment number:
-```
-{
-	"identifier": "10012345",
-	"identifier_type": "sap_equipment"
-}
-```
-
-### 12. get_project_details
-Get project details by number:
-```
-{
-	"project_number": "RFE-2024-001"
-}
-```
-
-### 13. get_related_assets
-Get all assets for a project:
-```
-{
-	"project_number": "1357"
-}
-```
-Include retired assets:
-```
-{
-	"project_number": "1357",
-	"include_retired": true
-}
-```
-
-
-### 15. validate_asset_tag
-Validate and parse an asset tag:
-```
-{
-	"tag_number": "V 2210 H EPE"
-}
-```
-
-#### 1. Find asset by full tag (type, sequence, department)
-```
-{
-	"tag_type": "V",
-	"sequence_number": "2210 H",
-	"department": "EPE"
-}
-```
-
-
-#### 7. Find assets by asset category and class
-```
-{
-	"asset_category": "Valve",
-	"asset_class": "Safety"
-}
-```
-
-
-You can combine multiple filters for advanced queries. All column names in the view are available for filtering if mapped in the tool schema.
-
-### Asset Search Tool: `search_assets`
-
-Use the MCP tool `search_assets` to query the view `[BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE]` for asset information. This view contains all asset properties and supports rich filtering via the following input parameters:
-
-#### Input Parameters
-
-- `tag_type` (string): Asset tag type, e.g. 'V', 'P', 'T'.
-- `sequence_number` (string): Asset sequence number, e.g. '2210 H'.
-- `department` (string): 3-character department code, e.g. 'MOD', 'EPE', 'MSE', 'SUP'.
-- `project_number` (string): Project number to filter assets. Supports partial matching.
-- `sap_equipment_number` (string): SAP equipment number for unique asset identification.
-- `asset_category` (string): Asset category for filtering.
-- `asset_class` (string): Asset class for filtering.
-- `asset_subclass` (string): Asset subclass for filtering.
-- `functional_location` (string): Functional location for process-related searches.
-- `unit` (string): Unit for process-related searches.
-- `process` (string): Process for process-related searches.
-- `subprocess` (string): Subprocess for process-related searches.
-- `in_workflow` (boolean): Filter assets that are in workflow (`[c_psApproval_WFStateApproval]` is not null).
-- `include_retired` (boolean): Include retired/decommissioned assets. Default is `false` (retired assets are excluded).
-- `limit` (number): Maximum number of results to return. Default is `50`.
-
-#### Example Usage
-
-To find an asset by tag:
-
-```
-{
-	"tag_type": "V",
-	"sequence_number": "2210 H",
-	"department": "EPE"
-}
-```
-
-To find assets by project number (partial match):
-
-```
-{
-	"project_number": "1357"
-}
-```
-
-To include retired assets:
-
-```
-{
-	"project_number": "1357",
-	"include_retired": true
-}
-```
-
-#### Notes
-
-- Asset uniqueness is determined by `[SAP EQUIPMENT NUMBER]` + `[PROJECT NUMBER]`.
-- Asset tag format: `[TAG TYPE]` + " " + `[SEQUENCE NUMBER]` + " " + `[DEPARTMENT]` (e.g., "V 2210 H EPE").
-- Department codes are always 3 characters.
-- By default, assets with `status='retired'` are excluded unless `include_retired` is set to `true`.
-
-Refer to the MCP tool schema for additional filters. Always validate input types and use partial matching for project numbers where needed.
-
-### Asset Search
-- Use `search_assets` tool for finding assets
-- Assets are identified by tag numbers like "V 2210 H EPE" (Tag Type + Sequence Number + Department)
-- Departments are always 3 characters: MOD, EPE, MSE, SUP
-- Retired assets are automatically excluded unless specifically requested
-- Each asset belongs to a project via PROJECT NUMBER
-- Asset Category, Asset Class and Asset Subclass together categorize the asset
-- If a user describes a process, retrieve it from: Functional Location, Unit, Process, sub process and their descriptions
-- Asset in workflow means `[c_psApproval_WFStateApproval]` is not null
-
-### Project Search
-- Use `search_projects` tool for finding projects
-- Projects starting with "RFE-" are investments (most common search)
-- Open projects have state different from "Closed" or "discontinued"
-- Use partial project numbers like "1357" to find matches
-- Projects contain all project-related information
-- The plant or as-built environment means `[PROJECT NUMBER]='-'`
-
-### Asset-Project Relationships
-- Assets and projects are linked by PROJECT NUMBER
-- Use `get_related_assets` to find all assets for a project
-- Use `get_asset_details` or `get_project_details` for complete information
-- Read all columns in BCAssetPropertiesViewByNameBCE and ProjectPropertiesView to know available data
+### Project Management
+- **Primary View**: `ProjectPropertiesView` - Contains all project information
+- **Project Types**: Projects starting with "RFE-" are investments
+- **Project Lookup**: Use `LIKE '%[project_number]%'` for partial matching
+- **Asset-Project Relationship**: Join on `PROJECT NUMBER` field
+- **Open Projects**: Projects with state different from "Closed" or "discontinued"
+- **Plant/As-built Environment**: `[PROJECT NUMBER]='-'`
 
 ## AIM_KANEKA - Documents
 
+### Document Management
+- **Primary View**: `DocumentPropertiesViewCoPilot` - Contains all document information
+- **Asset-Document References**: `AssetDocRefViewCoPilot` - Links assets to documents
+- **Key Field**: `[c_psDocument_DocumentTitle]` - Most commonly queried field
+- **Document Categories**: Use `[c_psDocument_DocumentCategoryD]`, `[c_psDocument_DocumentSubC_0]`
+- **Document Types**: PID, INV, COM, LAY (refer to `[c_psDocument_DocumentCategory]`)
+- **Vendor Information**: Check `[c_psdocument_vendor]` and `[c_psDocumentReferenceDrawingN]`
+- **Retired Documents**: Documents with `[c_psDocument_documentAsBuiltSt]='Retired'` are decommissioned
+- **Plant/As-built Environment**: `[c_psProject_ProjectNumber]='-'`
+
+### Asset-Document Relationships
+- Retrieve assets via `AssetDocRefViewCoPilot.[ObjectTagRevisionID]` → `BCAssetPropertiesViewByNameBCE.[ObjectTagRevisionID]`
+- Retrieve documents via `AssetDocRefViewCoPilot.DocumentRevisionID` → `DocumentPropertiesViewCoPilot.DocumentRevisionID`
+- Order references by `BCAssetPropertiesViewByNameBCE.[Tag Number]` or `DocumentPropertiesViewCoPilot.[FileName]`
+
+## Query Patterns
+
+### Asset Search Examples
+```sql
+-- Find asset by tag components
+SELECT * FROM [BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE]
+WHERE [TAG TYPE] = 'V'
+  AND [SEQUENCE NUMBER] = '2210 H'
+  AND [DEPARTMENT] = 'EPE'
+  AND [STATUS] != 'retired'
+
+-- Find assets by project
+SELECT * FROM [BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE]
+WHERE [PROJECT NUMBER] LIKE '%1357%'
+  AND [STATUS] != 'retired'
+```
+
+### Project Search Examples
+```sql
+-- Find investment projects
+SELECT * FROM [BC_VLTS_DATA].[dbo].[ProjectPropertiesView]
+WHERE [ProjectNumber] LIKE 'RFE-%'
+
+-- Find project by partial number
+SELECT * FROM [BC_VLTS_DATA].[dbo].[ProjectPropertiesView]
+WHERE [ProjectNumber] LIKE '%1357%'
+```
+
+### Document Search Examples
+```sql
+-- Search documents by title
+SELECT [c_psDocument_DocumentTitle], [ProjectNumber], [FileName], *
+FROM [AIM_KANEKA].[dbo].[DocumentPropertiesViewCoPilot]
+WHERE [c_psDocument_DocumentTitle] LIKE '%search_term%'
+  AND [c_psDocument_documentAsBuiltSt] != 'Retired'
+
+-- Find documents by category
+SELECT * FROM [AIM_KANEKA].[dbo].[DocumentPropertiesViewCoPilot]
+WHERE [c_psDocument_DocumentCategory] = 'PID'
+  AND [c_psDocument_documentAsBuiltSt] != 'Retired'
+
+-- Find documents with vendor information
+SELECT * FROM [AIM_KANEKA].[dbo].[DocumentPropertiesViewCoPilot]
+WHERE [c_psdocument_vendor] IS NOT NULL
+   OR [c_psDocumentReferenceDrawingN] IS NOT NULL
+```
+
+### Asset-Document Relationship Examples
+```sql
+-- Find documents for an asset
+SELECT d.[c_psDocument_DocumentTitle], d.[FileName], d.[ProjectNumber]
+FROM [AIM_KANEKA].[dbo].[AssetDocRefViewCoPilot] r
+JOIN [AIM_KANEKA].[dbo].[DocumentPropertiesViewCoPilot] d ON r.DocumentRevisionID = d.DocumentRevisionID
+JOIN [BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE] a ON r.[ObjectTagRevisionID] = a.[ObjectTagRevisionID]
+WHERE a.[TAG NUMBER] = 'V 2210 H EPE'
+ORDER BY d.[FileName]
+
+-- Find assets for a document
+SELECT a.[TAG NUMBER], a.[SAP EQUIPMENT NUMBER], a.[PROJECT NUMBER]
+FROM [AIM_KANEKA].[dbo].[AssetDocRefViewCoPilot] r
+JOIN [AIM_KANEKA].[dbo].[DocumentPropertiesViewCoPilot] d ON r.DocumentRevisionID = d.DocumentRevisionID
+JOIN [BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE] a ON r.[ObjectTagRevisionID] = a.[ObjectTagRevisionID]
+WHERE d.[c_psDocument_DocumentTitle] LIKE '%PID%'
+ORDER BY a.[TAG NUMBER]
+```
+
+## MCP Tool Usage Examples
+
+### Asset Search
+```json
+{
+  "tag_type": "V",
+  "sequence_number": "2210 H",
+  "department": "EPE"
+}
+```
+
+### Project Search
+```json
+{
+  "project_number": "1357",
+  "project_type": "RFE"
+}
+```
+
 ### Document Search
-- Use `search_documents` tool for finding documents
-- Focus on document titles (most useful field)
-- Documents can be linked to projects
-- Automatically filters out technical columns (c_Custom, c_PsChem)
+```json
+{
+  "title": "completion report",
+  "category": "COM",
+  "include_retired": false
+}
+```
 
-### Document Relationships
-- Use `get_related_documents` to find documents for specific projects or assets
-- Can search across both document tables simultaneously
-
-## Smart Search Capabilities
-
-### Asset Lookup Examples:
-- "Find asset V 2210 H" → Use `get_asset_details` with tag "V 2210 H EPE"
-- "Show me assets for project 1357" → Use `get_related_assets`
-- "Find retired assets" → Use `search_assets` with include_retired=true
-- "Find assets in workflow" → Use `search_assets` with workflow filter
-
-### Project Lookup Examples:
-- "Find project RFE-2024-001" → Use `get_project_details`
-- "Show investment projects" → Use `search_projects` with project_type="RFE"
-- "Find open projects" → Use `search_projects` with state filter
-- "Find projects containing 1357" → Use `search_projects` with partial number
-
-### Document Lookup Examples:
-- "Find documents for project 1357" → Use `get_related_documents`
-- "Search for maintenance documents" → Use `search_documents` with title search
-
-## Validation Tools
-- Use `validate_asset_tag` to check if tag format is correct
-- Use `get_database_schema` to explore database structure
+### Asset-Document Relationships
+```json
+{
+  "asset_tag": "V 2210 H EPE"
+}
+```
 
 ## Best Practices
-- Start with using the disctinct tool to get a feel of the data	in certain colums such as (Tag name, tag number, etc..)
-- use the get colum tool to get information on what colums exist
-- avoid using specific tools unless certain the input matches the structure of the colums its reading.
+
+- Always return the file name when available
 - Use partial matching for project numbers and document titles
 - Include department codes when searching assets
 - Filter by project type (RFE for investments) when appropriate
+- Exclude retired assets and documents unless specifically requested
 - Use relationship tools to find connected data across databases
 - If the question is unclear, ask user to specify further
 - Read all available columns to understand what data is accessible
+- Start with `get_distinct_values` to explore column content
+- Use `get_columns` to understand table structure before complex queries

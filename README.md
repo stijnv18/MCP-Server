@@ -1,11 +1,14 @@
 # MCP Server for On-Prem Database Access
 
-This project implements a Model Context Protocol (MCP) server that provides secure access to on-premise MSSQL databases. It allows MCP clients to execute SQL queries, retrieve database metadata, and perform various database operations through a standardized protocol.
+This project implements a Model Context Protocol (MCP) server that provides secure access to on-premise MSSQL databases at kgaprd-sql.gkaneka.local. It allows MCP clients to execute SQL queries, retrieve database metadata, and perform various database operations through a standardized protocol.
 
 ## Features
 
 - **Database Tools**: Execute SQL queries, stored procedures, and retrieve metadata
 - **Schema Exploration**: Get database schemas, tables, views, columns, and distinct values
+- **Asset & Project Management**: Search and retrieve assets and projects from BC_VLTS_DATA
+- **Document Management**: Search and retrieve documents from AIM_KANEKA
+- **Relationship Queries**: Find relationships between assets, projects, and documents
 - **Secure Authentication**: API key-based authentication for database access
 - **Session Management**: HTTP-based transport with session handling
 - **Error Monitoring**: Integrated Sentry for error tracking and performance monitoring
@@ -15,7 +18,7 @@ This project implements a Model Context Protocol (MCP) server that provides secu
 
 - Node.js 18+
 - TypeScript
-- Access to on-premise MSSQL database
+- Access to on-premise MSSQL database at kgaprd-sql.gkaneka.local
 - Docker and Docker Compose (for containerized deployment)
 
 ## Installation
@@ -41,7 +44,7 @@ Set the following environment variables:
 # Database Configuration
 DB_USER=your-db-user
 DB_PASSWORD=your-db-password
-DB_SERVER=your-db-server
+DB_SERVER=kgaprd-sql.gkaneka.local
 DB_NAME=your-db-name
 TRUST_CERT=false  # Set to true for self-signed certificates
 
@@ -55,7 +58,9 @@ SENTRY_DSN=your-sentry-dsn  # Optional, for error tracking
 
 ### Database Connection
 
-The server connects to an MSSQL database using the `mssql` package. Ensure your database server allows connections from the server host.
+The server connects to MSSQL databases at kgaprd-sql.gkaneka.local using the `mssql` package. The server provides access to two main databases:
+- **BC_VLTS_DATA**: Asset and project information
+- **AIM_KANEKA**: Document management and asset-document relationships
 
 ## Usage
 
@@ -147,15 +152,22 @@ Search for projects in BC_VLTS_DATA.ProjectPropertiesView.
 **Parameters:**
 - `project_number` (string, optional): Project number (supports partial matching)
 - `project_type` (string, optional): Filter by type ('RFE' for investments, 'all' for all)
+- `project_state` (string, optional): Filter by state ('open' for active, 'closed' for completed, 'all' for all)
+- `is_plant_environment` (boolean, optional): Filter for plant/as-built environment projects ([PROJECT NUMBER]='-')
 - `limit` (number, optional): Maximum number of results (default: 50)
 
 ### search_documents
-Search for documents in AIM_KANEKA document tables.
+Search for documents in AIM_KANEKA DocumentPropertiesViewCoPilot.
 
 **Parameters:**
-- `title` (string, optional): Document title to search for
+- `title` (string, optional): Document title to search for ([c_psDocument_DocumentTitle])
 - `project_number` (string, optional): Project number associated with documents
-- `table` (string, optional): Document table ('documentRevisionCustom', 'documentRevisionCustom1', or 'both')
+- `category` (string, optional): Document category ([c_psDocument_DocumentCategory]) - PID, INV, COM, LAY, etc.
+- `subcategory` (string, optional): Document subcategory ([c_psDocument_DocumentSubC_0])
+- `vendor` (string, optional): Vendor information ([c_psdocument_vendor])
+- `reference_drawing` (string, optional): Reference drawing number ([c_psDocumentReferenceDrawingN])
+- `include_retired` (boolean, optional): Include retired documents (default: false)
+- `is_plant_environment` (boolean, optional): Filter for plant/as-built environment documents
 - `limit` (number, optional): Maximum number of results (default: 50)
 
 ### get_asset_details
@@ -180,12 +192,21 @@ Get all assets related to a specific project.
 - `limit` (number, optional): Maximum number of results (default: 100)
 
 ### get_related_documents
-Get documents related to a specific project or asset.
+Get documents related to a specific project or asset using AssetDocRefViewCoPilot.
 
 **Parameters:**
 - `project_number` (string, optional): Project number to find related documents for
 - `asset_tag` (string, optional): Asset tag to find related documents for
-- `table` (string, optional): Document table to search
+- `include_retired` (boolean, optional): Include retired documents/assets (default: false)
+- `limit` (number, optional): Maximum number of results (default: 50)
+
+### get_assets_for_document
+Get assets related to a specific document using AssetDocRefViewCoPilot.
+
+**Parameters:**
+- `document_title` (string, optional): Document title to find related assets for
+- `file_name` (string, optional): File name to find related assets for
+- `include_retired` (boolean, optional): Include retired assets (default: false)
 - `limit` (number, optional): Maximum number of results (default: 50)
 
 ### validate_asset_tag

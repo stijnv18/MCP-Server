@@ -231,23 +231,42 @@ export const tools = [
   },
   {
     name: "search_documents",
-    description: "Search for documents in AIM_KANEKA document tables",
+    description: "Search for documents in AIM_KANEKA DocumentPropertiesViewCoPilot",
     inputSchema: {
       type: "object",
       properties: {
         title: {
           type: "string",
-          description: "Document title to search for"
+          description: "Document title to search for ([c_psDocument_DocumentTitle])"
         },
         project_number: {
           type: "string",
           description: "Project number associated with documents"
         },
-        table: {
+        category: {
           type: "string",
-          description: "Document table to search (documentRevisionCustom or documentRevisionCustom1)",
-          enum: ["documentRevisionCustom", "documentRevisionCustom1", "both"],
-          default: "both"
+          description: "Document category ([c_psDocument_DocumentCategory]) - PID, INV, COM, LAY, etc."
+        },
+        subcategory: {
+          type: "string",
+          description: "Document subcategory ([c_psDocument_DocumentSubC_0])"
+        },
+        vendor: {
+          type: "string",
+          description: "Vendor information ([c_psdocument_vendor])"
+        },
+        reference_drawing: {
+          type: "string",
+          description: "Reference drawing number ([c_psDocumentReferenceDrawingN])"
+        },
+        include_retired: {
+          type: "boolean",
+          description: "Include retired/decommissioned documents ([c_psDocument_documentAsBuiltSt]='Retired'). Default is false",
+          default: false
+        },
+        is_plant_environment: {
+          type: "boolean",
+          description: "Filter for plant/as-built environment documents ([c_psProject_ProjectNumber]='-')"
         },
         limit: {
           type: "number",
@@ -317,8 +336,35 @@ export const tools = [
     }
   },
   {
+    name: "get_assets_for_document",
+    description: "Get assets related to a specific document using AssetDocRefViewCoPilot",
+    inputSchema: {
+      type: "object",
+      properties: {
+        document_title: {
+          type: "string",
+          description: "Document title to find related assets for"
+        },
+        file_name: {
+          type: "string",
+          description: "File name to find related assets for"
+        },
+        include_retired: {
+          type: "boolean",
+          description: "Include retired/decommissioned assets. Default is false",
+          default: false
+        },
+        limit: {
+          type: "number",
+          description: "Maximum number of results to return (default: 50)",
+          default: 50
+        }
+      }
+    }
+  },
+  {
     name: "get_related_documents",
-    description: "Get documents related to a specific project or asset",
+    description: "Get documents related to a specific project or asset using AssetDocRefViewCoPilot",
     inputSchema: {
       type: "object",
       properties: {
@@ -330,11 +376,10 @@ export const tools = [
           type: "string",
           description: "Asset tag to find related documents for"
         },
-        table: {
-          type: "string",
-          description: "Document table to search",
-          enum: ["documentRevisionCustom", "documentRevisionCustom1", "both"],
-          default: "both"
+        include_retired: {
+          type: "boolean",
+          description: "Include retired/decommissioned documents. Default is false",
+          default: false
         },
         limit: {
           type: "number",
@@ -981,30 +1026,64 @@ export async function searchProjectsHandler(args: any) {
 }
 
 export async function searchDocumentsHandler(args: any) {
-  const { title, project_number, table = 'both', limit = 50 } = args;
+  const {
+    title,
+    project_number,
+    category,
+    subcategory,
+    vendor,
+    reference_drawing,
+    include_retired = false,
+    is_plant_environment,
+    limit = 50
+  } = args;
 
   try {
     const pool = getPool();
-    let query = '';
-    const tables = table === 'both' ? ['documentRevisionCustom', 'documentRevisionCustom1'] : [table];
+    let query = `SELECT TOP ${limit} * FROM [AIM_KANEKA].[dbo].[DocumentPropertiesViewCoPilot] WHERE 1=1`;
 
-    for (const tbl of tables) {
-      if (query) query += ' UNION ALL ';
-      query += `SELECT TOP ${limit} * FROM [AIM_KANEKA].[dbo].[${tbl}] WHERE 1=1`;
+    if (title) {
+      query += ` AND [c_psDocument_DocumentTitle] LIKE @title`;
+    }
 
-      if (title) {
-        query += ` AND [c_psDocument_DocumentTitle] LIKE @title`;
-      }
+    if (project_number) {
+      query += ` AND [ProjectNumber] LIKE @project_number`;
+    }
 
-      if (project_number) {
-        query += ` AND [ProjectNumber] LIKE @project_number`;
-      }
+    if (category) {
+      query += ` AND [c_psDocument_DocumentCategory] = @category`;
+    }
+
+    if (subcategory) {
+      query += ` AND [c_psDocument_DocumentSubC_0] LIKE @subcategory`;
+    }
+
+    if (vendor) {
+      query += ` AND [c_psdocument_vendor] LIKE @vendor`;
+    }
+
+    if (reference_drawing) {
+      query += ` AND [c_psDocumentReferenceDrawingN] LIKE @reference_drawing`;
+    }
+
+    if (!include_retired) {
+      query += ` AND [c_psDocument_documentAsBuiltSt] != 'Retired'`;
+    }
+
+    if (is_plant_environment === true) {
+      query += ` AND [c_psProject_ProjectNumber] = '-'`;
+    } else if (is_plant_environment === false) {
+      query += ` AND [c_psProject_ProjectNumber] != '-'`;
     }
 
     console.log(`Executing query: ${query}`);
     const result = await pool.request()
       .input('title', title ? `%${title}%` : '')
       .input('project_number', project_number ? `%${project_number}%` : '')
+      .input('category', category || '')
+      .input('subcategory', subcategory ? `%${subcategory}%` : '')
+      .input('vendor', vendor ? `%${vendor}%` : '')
+      .input('reference_drawing', reference_drawing ? `%${reference_drawing}%` : '')
       .query(query);
 
     return {
@@ -1191,30 +1270,58 @@ export async function getRelatedAssetsHandler(args: any) {
 }
 
 export async function getRelatedDocumentsHandler(args: any) {
-  const { project_number, asset_tag, table = 'both', limit = 50 } = args;
+  const { project_number, asset_tag, include_retired = false, limit = 50 } = args;
 
   try {
     const pool = getPool();
-    let query = '';
-    const tables = table === 'both' ? ['documentRevisionCustom', 'documentRevisionCustom1'] : [table];
 
-    for (const tbl of tables) {
-      if (query) query += ' UNION ALL ';
-      query += `SELECT TOP ${limit} * FROM [AIM_KANEKA].[dbo].[${tbl}] WHERE 1=1`;
-
-      if (project_number) {
-        query += ` AND [ProjectNumber] LIKE @project_number`;
-      }
-
-      if (asset_tag) {
-        query += ` AND [AssetTag] LIKE @asset_tag`;
-      }
+    if (!project_number && !asset_tag) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: "Error: Must provide either project_number or asset_tag"
+          }
+        ]
+      };
     }
+
+    let query = `
+      SELECT TOP ${limit}
+        d.[c_psDocument_DocumentTitle],
+        d.[FileName],
+        d.[ProjectNumber],
+        d.[c_psDocument_DocumentCategory],
+        d.[c_psDocument_DocumentSubC_0],
+        d.[c_psdocument_vendor],
+        d.[c_psDocumentReferenceDrawingN],
+        a.[TAG NUMBER] as AssetTag,
+        a.[SAP EQUIPMENT NUMBER] as SAPEquipmentNumber
+      FROM [AIM_KANEKA].[dbo].[AssetDocRefViewCoPilot] r
+      JOIN [AIM_KANEKA].[dbo].[DocumentPropertiesViewCoPilot] d ON r.DocumentRevisionID = d.DocumentRevisionID
+      JOIN [BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE] a ON r.[ObjectTagRevisionID] = a.[ObjectTagRevisionID]
+      WHERE 1=1
+    `;
+
+    if (project_number) {
+      query += ` AND d.[ProjectNumber] LIKE @project_number`;
+    }
+
+    if (asset_tag) {
+      query += ` AND a.[TAG NUMBER] = @asset_tag`;
+    }
+
+    if (!include_retired) {
+      query += ` AND d.[c_psDocument_documentAsBuiltSt] != 'Retired'`;
+      query += ` AND a.[STATUS] != 'retired'`;
+    }
+
+    query += ` ORDER BY d.[FileName]`;
 
     console.log(`Executing query: ${query}`);
     const result = await pool.request()
       .input('project_number', project_number ? `%${project_number}%` : '')
-      .input('asset_tag', asset_tag ? `%${asset_tag}%` : '')
+      .input('asset_tag', asset_tag || '')
       .query(query);
 
     return {
@@ -1235,6 +1342,86 @@ export async function getRelatedDocumentsHandler(args: any) {
         {
           type: "text",
           text: `Error getting related documents: ${error instanceof Error ? error.message : String(error)}`
+        }
+      ]
+    };
+  }
+}
+
+export async function getAssetsForDocumentHandler(args: any) {
+  const { document_title, file_name, include_retired = false, limit = 50 } = args;
+
+  try {
+    const pool = getPool();
+
+    if (!document_title && !file_name) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: "Error: Must provide either document_title or file_name"
+          }
+        ]
+      };
+    }
+
+    let query = `
+      SELECT TOP ${limit}
+        a.[TAG NUMBER] as AssetTag,
+        a.[SAP EQUIPMENT NUMBER] as SAPEquipmentNumber,
+        a.[PROJECT NUMBER] as ProjectNumber,
+        a.[ASSET CATEGORY] as AssetCategory,
+        a.[ASSET CLASS] as AssetClass,
+        a.[DEPARTMENT] as Department,
+        d.[c_psDocument_DocumentTitle],
+        d.[FileName],
+        d.[c_psDocument_DocumentCategory],
+        d.[c_psDocument_DocumentSubC_0]
+      FROM [AIM_KANEKA].[dbo].[AssetDocRefViewCoPilot] r
+      JOIN [AIM_KANEKA].[dbo].[DocumentPropertiesViewCoPilot] d ON r.DocumentRevisionID = d.DocumentRevisionID
+      JOIN [BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE] a ON r.[ObjectTagRevisionID] = a.[ObjectTagRevisionID]
+      WHERE 1=1
+    `;
+
+    if (document_title) {
+      query += ` AND d.[c_psDocument_DocumentTitle] LIKE @document_title`;
+    }
+
+    if (file_name) {
+      query += ` AND d.[FileName] = @file_name`;
+    }
+
+    if (!include_retired) {
+      query += ` AND d.[c_psDocument_documentAsBuiltSt] != 'Retired'`;
+      query += ` AND a.[STATUS] != 'retired'`;
+    }
+
+    query += ` ORDER BY a.[TAG NUMBER]`;
+
+    console.log(`Executing query: ${query}`);
+    const result = await pool.request()
+      .input('document_title', document_title ? `%${document_title}%` : '')
+      .input('file_name', file_name || '')
+      .query(query);
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Found ${result.recordset.length} assets related to the document:\n${JSON.stringify(result.recordset, null, 2)}`
+        }
+      ]
+    };
+  } catch (error) {
+    const sentryDsn = process.env.SENTRY_DSN || 'your-sentry-dsn-here';
+    if (sentryDsn && sentryDsn !== 'your-sentry-dsn-here') {
+      Sentry.captureException(error);
+    }
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Error getting assets for document: ${error instanceof Error ? error.message : String(error)}`
         }
       ]
     };
@@ -1365,6 +1552,7 @@ const toolHandlers: Record<string, (args: any) => Promise<any>> = {
   get_project_details: getProjectDetailsHandler,
   get_related_assets: getRelatedAssetsHandler,
   get_related_documents: getRelatedDocumentsHandler,
+  get_assets_for_document: getAssetsForDocumentHandler,
   validate_asset_tag: validateAssetTagHandler,
   get_database_schema: getDatabaseSchemaHandler,
 };
