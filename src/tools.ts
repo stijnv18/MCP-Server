@@ -257,7 +257,7 @@ export const tools = [
         },
         reference_drawing: {
           type: "string",
-          description: "Reference drawing number ([c_psDocumentReferenceDrawingN])"
+          description: "Reference drawing number ([c_psDocument_ReferenceDrawingN])"
         },
         include_retired: {
           type: "boolean",
@@ -926,7 +926,7 @@ export async function searchAssetsHandler(args: any) {
     }
 
     if (!include_retired) {
-      query += ` AND [STATUS] != 'retired'`;
+      query += ` AND [c_psDocument_documentAsBuiltSt] != 'retired'`;
     }
 
     console.log(`Executing query: ${query}`);
@@ -1063,7 +1063,7 @@ export async function searchDocumentsHandler(args: any) {
     }
 
     if (reference_drawing) {
-      query += ` AND [c_psDocumentReferenceDrawingN] LIKE @reference_drawing`;
+      query += ` AND [c_psDocument_ReferenceDrawingN] LIKE @reference_drawing`;
     }
 
     if (!include_retired) {
@@ -1237,7 +1237,7 @@ export async function getRelatedAssetsHandler(args: any) {
                  WHERE [PROJECT NUMBER] LIKE @project_number`;
 
     if (!include_retired) {
-      query += ` AND [STATUS] != 'retired'`;
+      query += ` AND [c_psDocument_documentAsBuiltSt] != 'retired'`;
     }
 
     console.log(`Executing query: ${query}`);
@@ -1294,7 +1294,7 @@ export async function getRelatedDocumentsHandler(args: any) {
         d.[c_psDocument_DocumentCategory],
         d.[c_psDocument_DocumentSubC_0],
         d.[c_psdocument_vendor],
-        d.[c_psDocumentReferenceDrawingN],
+        d.[c_psDocument_ReferenceDrawingN],
         a.[TAG NUMBER] as AssetTag,
         a.[SAP EQUIPMENT NUMBER] as SAPEquipmentNumber
       FROM [AIM_KANEKA].[dbo].[AssetDocRefViewCoPilot] r
@@ -1313,7 +1313,6 @@ export async function getRelatedDocumentsHandler(args: any) {
 
     if (!include_retired) {
       query += ` AND d.[c_psDocument_documentAsBuiltSt] != 'Retired'`;
-      query += ` AND a.[STATUS] != 'retired'`;
     }
 
     query += ` ORDER BY d.[FileName]`;
@@ -1392,8 +1391,7 @@ export async function getAssetsForDocumentHandler(args: any) {
     }
 
     if (!include_retired) {
-      query += ` AND d.[c_psDocument_documentAsBuiltSt] != 'Retired'`;
-      query += ` AND a.[STATUS] != 'retired'`;
+      query += ` AND a.[c_psDocument_documentAsBuiltSt] != 'Retired'`;
     }
 
     query += ` ORDER BY a.[TAG NUMBER]`;
