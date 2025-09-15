@@ -211,9 +211,9 @@ export const tools = [
           description: "Filter by project type ('RFE' for investments, 'all' for all)",
           enum: ["RFE", "all"]
         },
-        project_state: {
+        project_status: {
           type: "string",
-          description: "Filter by project state ('open' for active projects, 'closed' for completed, 'all' for all)",
+          description: "Filter by project status ('open' for active projects, 'closed' for completed, 'all' for all)",
           enum: ["open", "closed", "all"],
           default: "all"
         },
@@ -970,7 +970,7 @@ export async function searchAssetsHandler(args: any) {
 }
 
 export async function searchProjectsHandler(args: any) {
-  const { project_number, project_type, project_state = 'all', is_plant_environment, limit = 50 } = args;
+  const { project_number, project_type, project_status = 'all', is_plant_environment, limit = 50 } = args;
 
   try {
     const pool = getPool();
@@ -984,10 +984,10 @@ export async function searchProjectsHandler(args: any) {
       query += ` AND [ProjectNumber] LIKE 'RFE-%'`;
     }
 
-    if (project_state === 'open') {
-      query += ` AND [State] NOT IN ('Closed', 'discontinued')`;
-    } else if (project_state === 'closed') {
-      query += ` AND [State] IN ('Closed', 'discontinued')`;
+    if (project_status === 'open') {
+      query += ` AND [status] NOT IN ('Closed', 'discontinued')`;
+    } else if (project_status === 'closed') {
+      query += ` AND [status] IN ('Closed', 'discontinued')`;
     }
 
     if (is_plant_environment === true) {
@@ -1290,7 +1290,7 @@ export async function getRelatedDocumentsHandler(args: any) {
       SELECT TOP ${limit}
         d.[c_psDocument_DocumentTitle],
         d.[FileName],
-        d.[ProjectNumber],
+        a.[Project Number],
         d.[c_psDocument_DocumentCategory],
         d.[c_psDocument_DocumentSubC_0],
         d.[c_psdocument_vendor],
@@ -1304,7 +1304,7 @@ export async function getRelatedDocumentsHandler(args: any) {
     `;
 
     if (project_number) {
-      query += ` AND d.[ProjectNumber] LIKE @project_number`;
+      query += ` AND a.[Project Number] LIKE @project_number`;
     }
 
     if (asset_tag) {
