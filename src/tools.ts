@@ -259,6 +259,10 @@ export const tools = [
           type: "string",
           description: "Vendor information ([c_psdocument_vendor])"
         },
+        department: {
+          type: "string",
+          description: "Department code ([c_Custom_Department]) - 3-letter code (MOD, EPE, MSE, SUP)"
+        },
         reference_drawing: {
           type: "string",
           description: "Reference drawing number ([c_psDocument_ReferenceDrawingN])"
@@ -353,6 +357,10 @@ export const tools = [
           type: "string",
           description: "File name to find related assets for"
         },
+        department: {
+          type: "string",
+          description: "Department code ([c_Custom_Department]) - 3-letter code (MOD, EPE, MSE, SUP)"
+        },
         include_retired: {
           type: "boolean",
           description: "Include retired/decommissioned assets. Default is false",
@@ -379,6 +387,10 @@ export const tools = [
         asset_tag: {
           type: "string",
           description: "Asset tag to find related documents for"
+        },
+        department: {
+          type: "string",
+          description: "Department code ([c_Custom_Department]) - 3-letter code (MOD, EPE, MSE, SUP)"
         },
         include_retired: {
           type: "boolean",
@@ -1057,6 +1069,7 @@ export async function searchDocumentsHandler(args: any) {
     category,
     subcategory,
     vendor,
+    department,
     reference_drawing,
     include_retired = false,
     is_plant_environment,
@@ -1087,6 +1100,10 @@ export async function searchDocumentsHandler(args: any) {
       query += ` AND [c_psdocument_vendor] LIKE @vendor`;
     }
 
+    if (department) {
+      query += ` AND [c_Custom_Department] = @department`;
+    }
+
     if (reference_drawing) {
       query += ` AND [c_psDocument_ReferenceDrawingN] LIKE @reference_drawing`;
     }
@@ -1108,6 +1125,7 @@ export async function searchDocumentsHandler(args: any) {
       .input('category', category || '')
       .input('subcategory', subcategory ? `%${subcategory}%` : '')
       .input('vendor', vendor ? `%${vendor}%` : '')
+      .input('department', department || '')
       .input('reference_drawing', reference_drawing ? `%${reference_drawing}%` : '')
       .query(query);
 
@@ -1324,7 +1342,7 @@ export async function getRelatedAssetsHandler(args: any) {
 }
 
 export async function getRelatedDocumentsHandler(args: any) {
-  const { project_number, asset_tag, include_retired = false, limit = 50 } = args;
+  const { project_number, asset_tag, department, include_retired = false, limit = 50 } = args;
 
   try {
     const pool = getPool();
@@ -1349,6 +1367,7 @@ export async function getRelatedDocumentsHandler(args: any) {
         d.[c_psDocument_DocumentSubC_0],
         d.[c_psdocument_vendor],
         d.[c_psDocument_ReferenceDrawingN],
+        d.[c_Custom_Department],
         a.[TAG NUMBER] as AssetTag,
         a.[SAP EQUIPMENT NUMBER] as SAPEquipmentNumber
       FROM [AIM_KANEKA].[dbo].[AssetDocRefViewCoPilot] r
@@ -1365,6 +1384,10 @@ export async function getRelatedDocumentsHandler(args: any) {
       query += ` AND a.[TAG NUMBER] = @asset_tag`;
     }
 
+    if (department) {
+      query += ` AND d.[c_Custom_Department] = @department`;
+    }
+
     if (!include_retired) {
       query += ` AND d.[c_psDocument_documentAsBuiltSt] != 'Retired'`;
     }
@@ -1375,6 +1398,7 @@ export async function getRelatedDocumentsHandler(args: any) {
     const result = await pool.request()
       .input('project_number', project_number ? `%${project_number}%` : '')
       .input('asset_tag', asset_tag || '')
+      .input('department', department || '')
       .query(query);
 
     return {
@@ -1402,7 +1426,7 @@ export async function getRelatedDocumentsHandler(args: any) {
 }
 
 export async function getAssetsForDocumentHandler(args: any) {
-  const { document_title, file_name, include_retired = false, limit = 50 } = args;
+  const { document_title, file_name, department, include_retired = false, limit = 50 } = args;
 
   try {
     const pool = getPool();
@@ -1429,7 +1453,8 @@ export async function getAssetsForDocumentHandler(args: any) {
         d.[c_psDocument_DocumentTitle],
         d.[FileName],
         d.[c_psDocument_DocumentCategory],
-        d.[c_psDocument_DocumentSubC_0]
+        d.[c_psDocument_DocumentSubC_0],
+        d.[c_Custom_Department]
       FROM [AIM_KANEKA].[dbo].[AssetDocRefViewCoPilot] r
       JOIN [AIM_KANEKA].[dbo].[DocumentPropertiesViewCoPilot] d ON r.DocumentRevisionID = d.DocumentRevisionID
       JOIN [BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE] a ON r.[ObjectTagRevisionID] = a.[ObjectTagRevisionID]
@@ -1444,6 +1469,10 @@ export async function getAssetsForDocumentHandler(args: any) {
       query += ` AND d.[FileName] = @file_name`;
     }
 
+    if (department) {
+      query += ` AND d.[c_Custom_Department] = @department`;
+    }
+
     if (!include_retired) {
       query += ` AND a.[c_psDocument_documentAsBuiltSt] != 'Retired'`;
     }
@@ -1454,6 +1483,7 @@ export async function getAssetsForDocumentHandler(args: any) {
     const result = await pool.request()
       .input('document_title', document_title ? `%${document_title}%` : '')
       .input('file_name', file_name || '')
+      .input('department', department || '')
       .query(query);
 
     return {
