@@ -1568,7 +1568,8 @@ export async function getRelatedDocumentsHandler(args: any) {
     }
 
     if (!include_retired) {
-      query += ` AND d.[c_psDocument_documentAsBuiltSt] != 'Retired'`;
+      query += ` AND d.[c_psDocument_DocumentAsBuiltSt] != 'Retired'`;
+
     }
 
     query += ` ORDER BY d.[FileName]`;
@@ -1687,7 +1688,7 @@ export async function getAssetsForDocumentHandler(args: any) {
     }
 
     if (!include_retired) {
-      query += ` AND a.[c_psDocument_documentAsBuiltSt] != 'Retired'`;
+      query += ` AND d.[c_psDocument_DocumentAsBuiltSt] != 'Retired'`;
     }
 
     query += ` ORDER BY a.[TAG NUMBER]`;
@@ -1721,7 +1722,7 @@ export async function getAssetsForDocumentHandler(args: any) {
     }
 
     if (!include_retired) {
-      countQuery += ` AND a.[c_psDocument_documentAsBuiltSt] != 'Retired'`;
+      countQuery += ` AND d.[c_psDocument_DocumentAsBuiltSt] != 'Retired'`;
     }
 
     console.log(`Executing count query: ${countQuery}`);
