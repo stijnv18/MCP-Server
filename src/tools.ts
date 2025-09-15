@@ -889,6 +889,7 @@ export async function searchAssetsHandler(args: any) {
   let parsedSequenceNumber = sequence_number;
   let parsedDepartment = department;
 
+
   if (full_tag && (!tag_type || !sequence_number || !department)) {
     const parts = full_tag.trim().split(/\s+/);
     if (parts.length >= 2) {
@@ -903,7 +904,7 @@ export async function searchAssetsHandler(args: any) {
       }
     }
   }
-
+  console.log(`Parsed tag_type: ${parsedTagType}, sequence_number: ${parsedSequenceNumber}, department: ${parsedDepartment}`);
   try {
     const pool = getPool();
     let query = `SELECT TOP ${limit} * FROM [BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE] WHERE 1=1`;
@@ -963,7 +964,7 @@ export async function searchAssetsHandler(args: any) {
     }
 
     if (!include_retired) {
-      query += ` AND [c_psDocument_documentAsBuiltSt] != 'retired'`;
+      query += ` AND [c_psAsset_AsBuiltStatus] != 'retired'`;
     }
 
     console.log(`Executing query: ${query}`);
@@ -1040,7 +1041,7 @@ export async function searchAssetsHandler(args: any) {
     }
 
     if (!include_retired) {
-      countQuery += ` AND [c_psDocument_documentAsBuiltSt] != 'retired'`;
+      countQuery += ` AND [c_psAsset_AsBuiltStatus] != 'retired'`;
     }
 
     console.log(`Executing count query: ${countQuery}`);
