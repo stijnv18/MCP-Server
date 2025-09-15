@@ -982,11 +982,90 @@ export async function searchAssetsHandler(args: any) {
       .input('subprocess', subprocess ? `%${subprocess}%` : '')
       .query(query);
 
+    // Execute count query to get total results
+    let countQuery = `SELECT COUNT(*) AS total_count FROM [BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE] WHERE 1=1`;
+
+    if (parsedTagType) {
+      countQuery += ` AND [TAG_TYPE] = @tag_type`;
+    }
+
+    if (parsedSequenceNumber) {
+      countQuery += ` AND [SEQUENCE NUMBER] = @sequence_number`;
+    }
+
+    if (parsedDepartment) {
+      countQuery += ` AND [DEPARTMENT] = @department`;
+    }
+
+    if (project_number) {
+      countQuery += ` AND [PROJECT NUMBER] LIKE @project_number`;
+    }
+
+    if (sap_equipment_number) {
+      countQuery += ` AND [SAP EQUIPMENT NUMBER] = @sap_equipment_number`;
+    }
+
+    if (asset_category) {
+      countQuery += ` AND [ASSET CATEGORY] = @asset_category`;
+    }
+
+    if (asset_class) {
+      countQuery += ` AND [ASSET CLASS] = @asset_class`;
+    }
+
+    if (asset_subclass) {
+      countQuery += ` AND [ASSET SUB CLASS] = @asset_subclass`;
+    }
+
+    if (functional_location) {
+      countQuery += ` AND [FUNCTIONAL LOCATION] LIKE @functional_location`;
+    }
+
+    if (unit) {
+      countQuery += ` AND [UNIT] LIKE @unit`;
+    }
+
+    if (process) {
+      countQuery += ` AND [PROCESS] LIKE @process`;
+    }
+
+    if (subprocess) {
+      countQuery += ` AND [SUB PROCESS] LIKE @subprocess`;
+    }
+
+    if (in_workflow === true) {
+      countQuery += ` AND [c_psApproval_WFStateApproval] IS NOT NULL`;
+    } else if (in_workflow === false) {
+      countQuery += ` AND [c_psApproval_WFStateApproval] IS NULL`;
+    }
+
+    if (!include_retired) {
+      countQuery += ` AND [c_psDocument_documentAsBuiltSt] != 'retired'`;
+    }
+
+    console.log(`Executing count query: ${countQuery}`);
+    const countResult = await pool.request()
+      .input('tag_type', parsedTagType || '')
+      .input('sequence_number', parsedSequenceNumber || '')
+      .input('department', parsedDepartment || '')
+      .input('project_number', project_number ? `%${project_number}%` : '')
+      .input('sap_equipment_number', sap_equipment_number || '')
+      .input('asset_category', asset_category || '')
+      .input('asset_class', asset_class || '')
+      .input('asset_subclass', asset_subclass || '')
+      .input('functional_location', functional_location ? `%${functional_location}%` : '')
+      .input('unit', unit ? `%${unit}%` : '')
+      .input('process', process ? `%${process}%` : '')
+      .input('subprocess', subprocess ? `%${subprocess}%` : '')
+      .query(countQuery);
+
+    const totalCount = countResult.recordset[0].total_count;
+
     return {
       content: [
         {
           type: "text",
-          text: `Found ${result.recordset.length} assets:\n${JSON.stringify(result.recordset, null, 2)}`
+          text: `Found ${result.recordset.length} assets (total: ${totalCount}):\n${JSON.stringify(result.recordset, null, 2)}`
         }
       ]
     };
@@ -1038,11 +1117,41 @@ export async function searchProjectsHandler(args: any) {
       .input('project_number', project_number ? `%${project_number}%` : '')
       .query(query);
 
+    // Execute count query to get total results
+    let countQuery = `SELECT COUNT(*) AS total_count FROM [BC_VLTS_DATA].[dbo].[ProjectPropertiesView] WHERE 1=1`;
+
+    if (project_number) {
+      countQuery += ` AND [ProjectNumber] LIKE @project_number`;
+    }
+
+    if (project_type === 'RFE') {
+      countQuery += ` AND [ProjectNumber] LIKE 'RFE-%'`;
+    }
+
+    if (project_status === 'open') {
+      countQuery += ` AND [status] NOT IN ('Closed', 'discontinued')`;
+    } else if (project_status === 'closed') {
+      countQuery += ` AND [status] IN ('Closed', 'discontinued')`;
+    }
+
+    if (is_plant_environment === true) {
+      countQuery += ` AND [ProjectNumber] = '-'`;
+    } else if (is_plant_environment === false) {
+      countQuery += ` AND [ProjectNumber] != '-'`;
+    }
+
+    console.log(`Executing count query: ${countQuery}`);
+    const countResult = await pool.request()
+      .input('project_number', project_number ? `%${project_number}%` : '')
+      .query(countQuery);
+
+    const totalCount = countResult.recordset[0].total_count;
+
     return {
       content: [
         {
           type: "text",
-          text: `Found ${result.recordset.length} projects:\n${JSON.stringify(result.recordset, null, 2)}`
+          text: `Found ${result.recordset.length} projects (total: ${totalCount}):\n${JSON.stringify(result.recordset, null, 2)}`
         }
       ]
     };
@@ -1129,11 +1238,65 @@ export async function searchDocumentsHandler(args: any) {
       .input('reference_drawing', reference_drawing ? `%${reference_drawing}%` : '')
       .query(query);
 
+    // Execute count query to get total results
+    let countQuery = `SELECT COUNT(*) AS total_count FROM [AIM_KANEKA].[dbo].[DocumentPropertiesViewCoPilot] WHERE 1=1`;
+
+    if (title) {
+      countQuery += ` AND [c_psDocument_DocumentTitle] LIKE @title`;
+    }
+
+    if (project_number) {
+      countQuery += ` AND [ProjectNumber] LIKE @project_number`;
+    }
+
+    if (category) {
+      countQuery += ` AND [c_psDocument_DocumentCategory] = @category`;
+    }
+
+    if (subcategory) {
+      countQuery += ` AND [c_psDocument_DocumentSubC_0] LIKE @subcategory`;
+    }
+
+    if (vendor) {
+      countQuery += ` AND [c_psdocument_vendor] LIKE @vendor`;
+    }
+
+    if (department) {
+      countQuery += ` AND [c_Custom_Department] = @department`;
+    }
+
+    if (reference_drawing) {
+      countQuery += ` AND [c_psDocument_ReferenceDrawingN] LIKE @reference_drawing`;
+    }
+
+    if (!include_retired) {
+      countQuery += ` AND [c_psDocument_documentAsBuiltSt] != 'Retired'`;
+    }
+
+    if (is_plant_environment === true) {
+      countQuery += ` AND [c_psProject_ProjectNumber] = '-'`;
+    } else if (is_plant_environment === false) {
+      countQuery += ` AND [c_psProject_ProjectNumber] != '-'`;
+    }
+
+    console.log(`Executing count query: ${countQuery}`);
+    const countResult = await pool.request()
+      .input('title', title ? `%${title}%` : '')
+      .input('project_number', project_number ? `%${project_number}%` : '')
+      .input('category', category || '')
+      .input('subcategory', subcategory ? `%${subcategory}%` : '')
+      .input('vendor', vendor ? `%${vendor}%` : '')
+      .input('department', department || '')
+      .input('reference_drawing', reference_drawing ? `%${reference_drawing}%` : '')
+      .query(countQuery);
+
+    const totalCount = countResult.recordset[0].total_count;
+
     return {
       content: [
         {
           type: "text",
-          text: `Found ${result.recordset.length} documents:\n${JSON.stringify(result.recordset, null, 2)}`
+          text: `Found ${result.recordset.length} documents (total: ${totalCount}):\n${JSON.stringify(result.recordset, null, 2)}`
         }
       ]
     };
@@ -1317,11 +1480,26 @@ export async function getRelatedAssetsHandler(args: any) {
       .input('project_number', `%${project_number}%`)
       .query(query);
 
+    // Execute count query to get total results
+    let countQuery = `SELECT COUNT(*) AS total_count FROM [BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE]
+                      WHERE [PROJECT NUMBER] LIKE @project_number`;
+
+    if (!include_retired) {
+      countQuery += ` AND [c_psDocument_documentAsBuiltSt] != 'retired'`;
+    }
+
+    console.log(`Executing count query: ${countQuery}`);
+    const countResult = await pool.request()
+      .input('project_number', `%${project_number}%`)
+      .query(countQuery);
+
+    const totalCount = countResult.recordset[0].total_count;
+
     return {
       content: [
         {
           type: "text",
-          text: `Found ${result.recordset.length} assets related to project ${project_number}:\n${JSON.stringify(result.recordset, null, 2)}`
+          text: `Found ${result.recordset.length} assets (total: ${totalCount}) related to project ${project_number}:\n${JSON.stringify(result.recordset, null, 2)}`
         }
       ]
     };
@@ -1401,11 +1579,45 @@ export async function getRelatedDocumentsHandler(args: any) {
       .input('department', department || '')
       .query(query);
 
+    // Execute count query to get total results
+    let countQuery = `
+      SELECT COUNT(*) AS total_count
+      FROM [AIM_KANEKA].[dbo].[AssetDocRefViewCoPilot] r
+      JOIN [AIM_KANEKA].[dbo].[DocumentPropertiesViewCoPilot] d ON r.DocumentRevisionID = d.DocumentRevisionID
+      JOIN [BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE] a ON r.[ObjectTagRevisionID] = a.[ObjectTagRevisionID]
+      WHERE 1=1
+    `;
+
+    if (project_number) {
+      countQuery += ` AND a.[Project Number] LIKE @project_number`;
+    }
+
+    if (asset_tag) {
+      countQuery += ` AND a.[TAG NUMBER] = @asset_tag`;
+    }
+
+    if (department) {
+      countQuery += ` AND d.[c_Custom_Department] = @department`;
+    }
+
+    if (!include_retired) {
+      countQuery += ` AND d.[c_psDocument_documentAsBuiltSt] != 'Retired'`;
+    }
+
+    console.log(`Executing count query: ${countQuery}`);
+    const countResult = await pool.request()
+      .input('project_number', project_number ? `%${project_number}%` : '')
+      .input('asset_tag', asset_tag || '')
+      .input('department', department || '')
+      .query(countQuery);
+
+    const totalCount = countResult.recordset[0].total_count;
+
     return {
       content: [
         {
           type: "text",
-          text: `Found ${result.recordset.length} related documents:\n${JSON.stringify(result.recordset, null, 2)}`
+          text: `Found ${result.recordset.length} related documents (total: ${totalCount}):\n${JSON.stringify(result.recordset, null, 2)}`
         }
       ]
     };
@@ -1486,11 +1698,45 @@ export async function getAssetsForDocumentHandler(args: any) {
       .input('department', department || '')
       .query(query);
 
+    // Execute count query to get total results
+    let countQuery = `
+      SELECT COUNT(*) AS total_count
+      FROM [AIM_KANEKA].[dbo].[AssetDocRefViewCoPilot] r
+      JOIN [AIM_KANEKA].[dbo].[DocumentPropertiesViewCoPilot] d ON r.DocumentRevisionID = d.DocumentRevisionID
+      JOIN [BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE] a ON r.[ObjectTagRevisionID] = a.[ObjectTagRevisionID]
+      WHERE 1=1
+    `;
+
+    if (document_title) {
+      countQuery += ` AND d.[c_psDocument_DocumentTitle] LIKE @document_title`;
+    }
+
+    if (file_name) {
+      countQuery += ` AND d.[FileName] = @file_name`;
+    }
+
+    if (department) {
+      countQuery += ` AND d.[c_Custom_Department] = @department`;
+    }
+
+    if (!include_retired) {
+      countQuery += ` AND a.[c_psDocument_documentAsBuiltSt] != 'Retired'`;
+    }
+
+    console.log(`Executing count query: ${countQuery}`);
+    const countResult = await pool.request()
+      .input('document_title', document_title ? `%${document_title}%` : '')
+      .input('file_name', file_name || '')
+      .input('department', department || '')
+      .query(countQuery);
+
+    const totalCount = countResult.recordset[0].total_count;
+
     return {
       content: [
         {
           type: "text",
-          text: `Found ${result.recordset.length} assets related to the document:\n${JSON.stringify(result.recordset, null, 2)}`
+          text: `Found ${result.recordset.length} assets (total: ${totalCount}) related to the document:\n${JSON.stringify(result.recordset, null, 2)}`
         }
       ]
     };
