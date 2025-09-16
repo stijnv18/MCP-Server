@@ -5,7 +5,7 @@ import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
 /**
  * Parses an asset tag string into its components.
  * Tag format: [TAG_TYPE] [SEQUENCE_NUMBER] [DEPARTMENT]
- * Department is always the last 3 characters.
+ * Department is always the last 3 characters if they form a valid 3-letter code.
  * Handles extra whitespace and malformed tags.
  * @param tagString The full tag string to parse
  * @returns Object with tag_type, sequence_number, and department
@@ -21,12 +21,21 @@ function parseAssetTag(tagString: string): { tag_type: string; sequence_number: 
     return { tag_type: '', sequence_number: '', department: '' };
   }
 
-  // Department is always the last 3 characters
-  const department = trimmed.slice(-3);
+  // Check if the last 3 characters look like a valid department (3 uppercase letters)
+  const potentialDepartment = trimmed.slice(-3);
   const remaining = trimmed.slice(0, -3).trim();
 
+  let department = '';
+  let remainingToParse = trimmed;
+
+  // Validate department: must be exactly 3 uppercase letters
+  if (potentialDepartment.length === 3 && /^[A-Z]{3}$/.test(potentialDepartment)) {
+    department = potentialDepartment;
+    remainingToParse = remaining;
+  }
+
   // Split the remaining part to get tag_type and sequence_number
-  const parts = remaining.split(/\s+/);
+  const parts = remainingToParse.split(/\s+/);
   if (parts.length === 0) {
     return { tag_type: '', sequence_number: '', department };
   }
