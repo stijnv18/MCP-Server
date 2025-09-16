@@ -1381,6 +1381,21 @@ export async function getAssetDetailsHandler(args: any) {
       parsedDepartment = parsed.department;
 
       console.log(`Parsed tag number - Type: ${parsedTagType}, Sequence: ${parsedSequenceNumber}, Department: ${parsedDepartment}`);
+      
+      // Build query dynamically
+      query = `SELECT * FROM [BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE] WHERE 1=1`;
+      
+      if (parsedTagType) {
+        query += ` AND [TAG_TYPE] = @tag_type`;
+      }
+      
+      if (parsedSequenceNumber) {
+        query += ` AND [SEQUENCE NUMBER] = @sequence_number`;
+      }
+      
+      if (parsedDepartment) {
+        query += ` AND [DEPARTMENT] = @department`;
+      }
     } else {
       query = `SELECT * FROM [BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE]
                WHERE [SAP EQUIPMENT NUMBER] = @identifier`;
