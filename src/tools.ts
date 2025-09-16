@@ -423,6 +423,10 @@ export const tools = [
           type: "string",
           description: "Asset tag to find related documents for"
         },
+        sap_equipment_number: {
+          type: "string",
+          description: "SAP equipment number to find related documents for"
+        },
         department: {
           type: "string",
           description: "Department code ([c_Custom_Department]) - 3-letter code (MOD, EPE, MSE, SUP)"
@@ -1521,17 +1525,17 @@ export async function getRelatedAssetsHandler(args: any) {
 }
 
 export async function getRelatedDocumentsHandler(args: any) {
-  const { project_number, asset_tag, department, include_retired = false, limit = 50 } = args;
+  const { project_number, asset_tag, sap_equipment_number, department, include_retired = false, limit = 50 } = args;
 
   try {
     const pool = getPool();
 
-    if (!project_number && !asset_tag) {
+    if (!project_number && !asset_tag && !sap_equipment_number) {
       return {
         content: [
           {
             type: "text",
-            text: "Error: Must provide either project_number or asset_tag"
+            text: "Error: Must provide either project_number, asset_tag, or sap_equipment_number"
           }
         ]
       };
@@ -1563,6 +1567,10 @@ export async function getRelatedDocumentsHandler(args: any) {
       query += ` AND a.[TAG NUMBER] = @asset_tag`;
     }
 
+    if (sap_equipment_number) {
+      query += ` AND a.[SAP EQUIPMENT NUMBER] = @sap_equipment_number`;
+    }
+
     if (department) {
       query += ` AND d.[c_Custom_Department] = @department`;
     }
@@ -1578,6 +1586,7 @@ export async function getRelatedDocumentsHandler(args: any) {
     const result = await pool.request()
       .input('project_number', project_number ? `%${project_number}%` : '')
       .input('asset_tag', asset_tag || '')
+      .input('sap_equipment_number', sap_equipment_number || '')
       .input('department', department || '')
       .query(query);
 
@@ -1598,6 +1607,10 @@ export async function getRelatedDocumentsHandler(args: any) {
       countQuery += ` AND a.[TAG NUMBER] = @asset_tag`;
     }
 
+    if (sap_equipment_number) {
+      countQuery += ` AND a.[SAP EQUIPMENT NUMBER] = @sap_equipment_number`;
+    }
+
     if (department) {
       countQuery += ` AND d.[c_Custom_Department] = @department`;
     }
@@ -1610,6 +1623,7 @@ export async function getRelatedDocumentsHandler(args: any) {
     const countResult = await pool.request()
       .input('project_number', project_number ? `%${project_number}%` : '')
       .input('asset_tag', asset_tag || '')
+      .input('sap_equipment_number', sap_equipment_number || '')
       .input('department', department || '')
       .query(countQuery);
 
