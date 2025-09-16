@@ -2,49 +2,6 @@ import { getPool } from './db.js';
 import * as Sentry from '@sentry/node';
 import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
 
-/**
- * Parses an asset tag string into its components.
- * Tag format: [TAG_TYPE] [SEQUENCE_NUMBER] [DEPARTMENT]
- * Department is always the last 3 characters if they form a valid 3-letter code.
- * Handles extra whitespace and malformed tags.
- * @param tagString The full tag string to parse
- * @returns Object with tag_type, sequence_number, and department
- */
-function parseAssetTag(tagString: string): { tag_type: string; sequence_number: string; department: string } {
-  if (!tagString || typeof tagString !== 'string') {
-    return { tag_type: '', sequence_number: '', department: '' };
-  }
-
-  // Trim whitespace and normalize internal spaces
-  const trimmed = tagString.trim();
-  if (trimmed.length === 0) {
-    return { tag_type: '', sequence_number: '', department: '' };
-  }
-
-  // Check if the last 3 characters look like a valid department (3 uppercase letters)
-  const potentialDepartment = trimmed.slice(-3);
-  const remaining = trimmed.slice(0, -3).trim();
-
-  let department = '';
-  let remainingToParse = trimmed;
-
-  // Validate department: must be exactly 3 uppercase letters
-  if (potentialDepartment.length === 3 && /^[A-Z]{3}$/.test(potentialDepartment)) {
-    department = potentialDepartment;
-    remainingToParse = remaining;
-  }
-
-  // Split the remaining part to get tag_type and sequence_number
-  const parts = remainingToParse.split(/\s+/);
-  if (parts.length === 0) {
-    return { tag_type: '', sequence_number: '', department };
-  }
-
-  const tag_type = parts[0] || '';
-  const sequence_number = parts.length > 1 ? parts.slice(1).join(' ') : '';
-
-  return { tag_type, sequence_number, department };
-}
 
 export const tools = [
   {
@@ -175,21 +132,13 @@ export const tools = [
     inputSchema: {
       type: "object",
       properties: {
-        tag_type: {
+        asset_number: {
           type: "string",
-          description: "Asset tag type (e.g., 'V', 'P', 'T')"
-        },
-        sequence_number: {
-          type: "string",
-          description: "Asset sequence number (e.g., '2210 H')"
+          description: "Asset number to search for (supports partial matching with %)"
         },
         department: {
           type: "string",
           description: "3-character department code (MOD, EPE, MSE, SUP)"
-        },
-        full_tag: {
-          type: "string",
-          description: "Complete asset tag in format 'TAG_TYPE SEQUENCE_NUMBER DEPARTMENT' (e.g., 'V 2210 H EPE')"
         },
         project_number: {
           type: "string",
@@ -914,10 +863,8 @@ export async function getDistinctValuesHandler(args: any) {
 // New specialized handler functions for BC_VLTS_DATA and AIM_KANEKA
 export async function searchAssetsHandler(args: any) {
   const {
-    tag_type,
-    sequence_number,
+    asset_number,
     department,
-    full_tag,
     project_number,
     sap_equipment_number,
     asset_category,
@@ -932,31 +879,16 @@ export async function searchAssetsHandler(args: any) {
     limit = 50
   } = args;
 
-  // Parse full_tag if provided and individual components are not set
-  let parsedTagType = tag_type;
-  let parsedSequenceNumber = sequence_number;
-  let parsedDepartment = department;
-
-  if (full_tag && (!tag_type || !sequence_number || !department)) {
-    const parsed = parseAssetTag(full_tag);
-    if (!parsedTagType) parsedTagType = parsed.tag_type;
-    if (!parsedSequenceNumber) parsedSequenceNumber = parsed.sequence_number;
-    if (!parsedDepartment) parsedDepartment = parsed.department;
-  }
-  console.log(`Parsed tag_type: ${parsedTagType}, sequence_number: ${parsedSequenceNumber}, department: ${parsedDepartment}`);
   try {
     const pool = getPool();
     let query = `SELECT TOP ${limit} * FROM [BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE] WHERE 1=1`;
 
-    if (parsedTagType) {
-      query += ` AND [TAG_TYPE] = @tag_type`;
+    // Use asset_number with LIKE pattern if provided
+    if (asset_number) {
+      query += ` AND [c_psAsset_Asset_Number_Check] LIKE @asset_number`;
     }
 
-    if (parsedSequenceNumber) {
-      query += ` AND [SEQUENCE NUMBER] = @sequence_number`;
-    }
-
-    if (parsedDepartment) {
+    if (department) {
       query += ` AND [DEPARTMENT] = @department`;
     }
 
@@ -1008,9 +940,8 @@ export async function searchAssetsHandler(args: any) {
 
     console.log(`Executing query: ${query}`);
     const result = await pool.request()
-      .input('tag_type', parsedTagType || '')
-      .input('sequence_number', parsedSequenceNumber || '')
-      .input('department', parsedDepartment || '')
+      .input('asset_number', asset_number ? `%${asset_number}%` : '')
+      .input('department', department || '')
       .input('project_number', project_number ? `%${project_number}%` : '')
       .input('sap_equipment_number', sap_equipment_number || '')
       .input('asset_category', asset_category || '')
@@ -1025,15 +956,12 @@ export async function searchAssetsHandler(args: any) {
     // Execute count query to get total results
     let countQuery = `SELECT COUNT(*) AS total_count FROM [BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE] WHERE 1=1`;
 
-    if (parsedTagType) {
-      countQuery += ` AND [TAG_TYPE] = @tag_type`;
+    // Use asset_number with LIKE pattern if provided
+    if (asset_number) {
+      countQuery += ` AND [c_psAsset_Asset_Number_Check] LIKE @asset_number`;
     }
 
-    if (parsedSequenceNumber) {
-      countQuery += ` AND [SEQUENCE NUMBER] = @sequence_number`;
-    }
-
-    if (parsedDepartment) {
+    if (department) {
       countQuery += ` AND [DEPARTMENT] = @department`;
     }
 
@@ -1085,9 +1013,8 @@ export async function searchAssetsHandler(args: any) {
 
     console.log(`Executing count query: ${countQuery}`);
     const countResult = await pool.request()
-      .input('tag_type', parsedTagType || '')
-      .input('sequence_number', parsedSequenceNumber || '')
-      .input('department', parsedDepartment || '')
+      .input('asset_number', asset_number ? `%${asset_number}%` : '')
+      .input('department', department || '')
       .input('project_number', project_number ? `%${project_number}%` : '')
       .input('sap_equipment_number', sap_equipment_number || '')
       .input('asset_category', asset_category || '')
@@ -1363,39 +1290,10 @@ export async function getAssetDetailsHandler(args: any) {
     const pool = getPool();
     let query = '';
     
-    // Parse tag components
-    let parsedTagType = '';
-    let parsedSequenceNumber = '';
-    let parsedDepartment = '';
-
     if (identifier_type === 'tag_number') {
-      // Parse tag number using the robust parser
-      const parsed = parseAssetTag(identifier);
-
-      if (!parsed.tag_type) {
-        throw new Error('Invalid tag number format. Expected at least: TAG_TYPE');
-      }
-
-      parsedTagType = parsed.tag_type;
-      parsedSequenceNumber = parsed.sequence_number;
-      parsedDepartment = parsed.department;
-
-      console.log(`Parsed tag number - Type: ${parsedTagType}, Sequence: ${parsedSequenceNumber}, Department: ${parsedDepartment}`);
-      
-      // Build query dynamically
-      query = `SELECT * FROM [BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE] WHERE 1=1`;
-      
-      if (parsedTagType) {
-        query += ` AND [TAG_TYPE] = @tag_type`;
-      }
-      
-      if (parsedSequenceNumber) {
-        query += ` AND [SEQUENCE NUMBER] = @sequence_number`;
-      }
-      
-      if (parsedDepartment) {
-        query += ` AND [DEPARTMENT] = @department`;
-      }
+      // Use simple LIKE query on the asset number check field
+      query = `SELECT * FROM [BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE]
+               WHERE [c_psAsset_Asset_Number_Check] LIKE @identifier`;
     } else {
       query = `SELECT * FROM [BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE]
                WHERE [SAP EQUIPMENT NUMBER] = @identifier`;
@@ -1403,10 +1301,7 @@ export async function getAssetDetailsHandler(args: any) {
 
     console.log(`Executing query: ${query}`);
     const result = await pool.request()
-      .input('tag_type', parsedTagType)
-      .input('sequence_number', parsedSequenceNumber)
-      .input('department', parsedDepartment)
-      .input('identifier', identifier)
+      .input('identifier', identifier_type === 'tag_number' ? `%${identifier}%` : identifier)
       .query(query);
 
     if (result.recordset.length === 0) {
@@ -1588,7 +1483,7 @@ export async function getRelatedDocumentsHandler(args: any) {
     }
 
     if (asset_tag) {
-      query += ` AND a.[TAG NUMBER] = @asset_tag`;
+      query += ` AND a.[TAG NUMBER] LIKE @asset_tag`;
     }
 
     if (sap_equipment_number) {
@@ -1609,7 +1504,7 @@ export async function getRelatedDocumentsHandler(args: any) {
     console.log(`Executing query: ${query}`);
     const result = await pool.request()
       .input('project_number', project_number ? `%${project_number}%` : '')
-      .input('asset_tag', asset_tag || '')
+      .input('asset_tag', asset_tag ? `%${asset_tag}%` : '')
       .input('sap_equipment_number', sap_equipment_number || '')
       .input('department', department || '')
       .query(query);
@@ -1628,7 +1523,7 @@ export async function getRelatedDocumentsHandler(args: any) {
     }
 
     if (asset_tag) {
-      countQuery += ` AND a.[TAG NUMBER] = @asset_tag`;
+      countQuery += ` AND a.[TAG NUMBER] LIKE @asset_tag`;
     }
 
     if (sap_equipment_number) {
@@ -1646,7 +1541,7 @@ export async function getRelatedDocumentsHandler(args: any) {
     console.log(`Executing count query: ${countQuery}`);
     const countResult = await pool.request()
       .input('project_number', project_number ? `%${project_number}%` : '')
-      .input('asset_tag', asset_tag || '')
+      .input('asset_tag', asset_tag ? `%${asset_tag}%` : '')
       .input('sap_equipment_number', sap_equipment_number || '')
       .input('department', department || '')
       .query(countQuery);
@@ -1796,59 +1691,6 @@ export async function getAssetsForDocumentHandler(args: any) {
   }
 }
 
-export async function validateAssetTagHandler(args: any) {
-  const { tag_number } = args;
-
-  try {
-    const parsed = parseAssetTag(tag_number);
-
-    // Validate that we have at least a tag_type
-    if (!parsed.tag_type) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Invalid tag format: ${tag_number}. Expected format: TAG_TYPE SEQUENCE_NUMBER DEPARTMENT (e.g., "V 2210 H EPE")`
-          }
-        ]
-      };
-    }
-
-    const { tag_type, sequence_number, department } = parsed;
-
-    // Validate department (should be 3 characters)
-    if (department && department.length !== 3) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Invalid department: ${department}. Department should be exactly 3 characters (MOD, EPE, MSE, SUP)`
-          }
-        ]
-      };
-    }
-
-    const reconstructed = `${tag_type} ${sequence_number} ${department}`;
-
-    return {
-      content: [
-        {
-          type: "text",
-          text: `Tag validation successful:\n- Original: ${tag_number}\n- Tag Type: ${tag_type}\n- Sequence Number: ${sequence_number}\n- Department: ${department}\n- Reconstructed: ${reconstructed}\n- Valid: ${reconstructed === tag_number.trim()}`
-        }
-      ]
-    };
-  } catch (error) {
-    return {
-      content: [
-        {
-          type: "text",
-          text: `Error validating asset tag: ${error instanceof Error ? error.message : String(error)}`
-        }
-      ]
-    };
-  }
-}
 
 export async function getDatabaseSchemaHandler(args: any) {
   const { database, include_views = true, include_tables = true } = args;
@@ -1921,7 +1763,6 @@ const toolHandlers: Record<string, (args: any) => Promise<any>> = {
   get_related_assets: getRelatedAssetsHandler,
   get_related_documents: getRelatedDocumentsHandler,
   get_assets_for_document: getAssetsForDocumentHandler,
-  validate_asset_tag: validateAssetTagHandler,
   get_database_schema: getDatabaseSchemaHandler,
 };
 
