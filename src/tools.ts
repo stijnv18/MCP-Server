@@ -1483,7 +1483,7 @@ export async function getRelatedDocumentsHandler(args: any) {
     }
 
     if (asset_tag) {
-      query += ` AND a.[TAG NUMBER] LIKE @asset_tag`;
+      query += ` AND a.[c_psAsset_Asset_Number_Check] LIKE @asset_tag`;
     }
 
     if (sap_equipment_number) {
@@ -1523,7 +1523,7 @@ export async function getRelatedDocumentsHandler(args: any) {
     }
 
     if (asset_tag) {
-      countQuery += ` AND a.[TAG NUMBER] LIKE @asset_tag`;
+      countQuery += ` AND a.[c_psAsset_Asset_Number_Check] LIKE @asset_tag`;
     }
 
     if (sap_equipment_number) {
@@ -1624,7 +1624,7 @@ export async function getAssetsForDocumentHandler(args: any) {
       query += ` AND d.[c_psDocument_DocumentAsBuiltSt] != 'Retired'`;
     }
 
-    query += ` ORDER BY a.[TAG NUMBER]`;
+    query += ` ORDER BY a.[c_psAsset_Asset_Number_Check]`;
 
     console.log(`Executing query: ${query}`);
     const result = await pool.request()
