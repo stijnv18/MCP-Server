@@ -403,20 +403,6 @@ export const tools = [
     }
   },
   {
-    name: "validate_asset_tag",
-    description: "Validate and parse an asset tag number into its components",
-    inputSchema: {
-      type: "object",
-      properties: {
-        tag_number: {
-          type: "string",
-          description: "Complete asset tag number (e.g., 'V 2210 H EPE')"
-        }
-      },
-      required: ["tag_number"]
-    }
-  },
-  {
     name: "get_database_schema",
     description: "Get schema information for specific databases (BC_VLTS_DATA or AIM_KANEKA)",
     inputSchema: {
@@ -940,7 +926,7 @@ export async function searchAssetsHandler(args: any) {
 
     console.log(`Executing query: ${query}`);
     const result = await pool.request()
-      .input('asset_number', asset_number ? `%${asset_number}%` : '')
+      .input('asset_number', asset_number ? `%${asset_number.replace(/\s+/g, '')}%` : '')
       .input('department', department || '')
       .input('project_number', project_number ? `%${project_number}%` : '')
       .input('sap_equipment_number', sap_equipment_number || '')
@@ -1013,7 +999,7 @@ export async function searchAssetsHandler(args: any) {
 
     console.log(`Executing count query: ${countQuery}`);
     const countResult = await pool.request()
-      .input('asset_number', asset_number ? `%${asset_number}%` : '')
+      .input('asset_number', asset_number ? `%${asset_number.replace(/\s+/g, '')}%` : '')
       .input('department', department || '')
       .input('project_number', project_number ? `%${project_number}%` : '')
       .input('sap_equipment_number', sap_equipment_number || '')
@@ -1301,7 +1287,7 @@ export async function getAssetDetailsHandler(args: any) {
 
     console.log(`Executing query: ${query}`);
     const result = await pool.request()
-      .input('identifier', identifier_type === 'tag_number' ? `%${identifier}%` : identifier)
+      .input('identifier', identifier_type === 'tag_number' ? `%${identifier.replace(/\s+/g, '')}%` : identifier)
       .query(query);
 
     if (result.recordset.length === 0) {
@@ -1504,7 +1490,7 @@ export async function getRelatedDocumentsHandler(args: any) {
     console.log(`Executing query: ${query}`);
     const result = await pool.request()
       .input('project_number', project_number ? `%${project_number}%` : '')
-      .input('asset_tag', asset_tag ? `%${asset_tag}%` : '')
+      .input('asset_tag', asset_tag ? `%${asset_tag.replace(/\s+/g, '')}%` : '')
       .input('sap_equipment_number', sap_equipment_number || '')
       .input('department', department || '')
       .query(query);
@@ -1541,7 +1527,7 @@ export async function getRelatedDocumentsHandler(args: any) {
     console.log(`Executing count query: ${countQuery}`);
     const countResult = await pool.request()
       .input('project_number', project_number ? `%${project_number}%` : '')
-      .input('asset_tag', asset_tag ? `%${asset_tag}%` : '')
+      .input('asset_tag', asset_tag ? `%${asset_tag.replace(/\s+/g, '')}%` : '')
       .input('sap_equipment_number', sap_equipment_number || '')
       .input('department', department || '')
       .query(countQuery);
