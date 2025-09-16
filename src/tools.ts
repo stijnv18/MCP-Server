@@ -2,6 +2,41 @@ import { getPool } from './db.js';
 import * as Sentry from '@sentry/node';
 import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
 
+/**
+ * Parses an asset tag string into its components.
+ * Tag format: [TAG_TYPE] [SEQUENCE_NUMBER] [DEPARTMENT]
+ * Department is always the last 3 characters.
+ * Handles extra whitespace and malformed tags.
+ * @param tagString The full tag string to parse
+ * @returns Object with tag_type, sequence_number, and department
+ */
+function parseAssetTag(tagString: string): { tag_type: string; sequence_number: string; department: string } {
+  if (!tagString || typeof tagString !== 'string') {
+    return { tag_type: '', sequence_number: '', department: '' };
+  }
+
+  // Trim whitespace and normalize internal spaces
+  const trimmed = tagString.trim();
+  if (trimmed.length === 0) {
+    return { tag_type: '', sequence_number: '', department: '' };
+  }
+
+  // Department is always the last 3 characters
+  const department = trimmed.slice(-3);
+  const remaining = trimmed.slice(0, -3).trim();
+
+  // Split the remaining part to get tag_type and sequence_number
+  const parts = remaining.split(/\s+/);
+  if (parts.length === 0) {
+    return { tag_type: '', sequence_number: '', department };
+  }
+
+  const tag_type = parts[0] || '';
+  const sequence_number = parts.length > 1 ? parts.slice(1).join(' ') : '';
+
+  return { tag_type, sequence_number, department };
+}
+
 export const tools = [
   {
     name: "get_list_views",
@@ -889,20 +924,11 @@ export async function searchAssetsHandler(args: any) {
   let parsedSequenceNumber = sequence_number;
   let parsedDepartment = department;
 
-
   if (full_tag && (!tag_type || !sequence_number || !department)) {
-    const parts = full_tag.trim().split(/\s+/);
-    if (parts.length >= 2) {
-      if (!parsedTagType) parsedTagType = parts[0];
-      if (!parsedDepartment && parts.length >= 3) parsedDepartment = parts[parts.length - 1];
-      if (!parsedSequenceNumber && parts.length >= 3) {
-        // Sequence number is everything between tag_type and department
-        parsedSequenceNumber = parts.slice(1, -1).join(' ');
-      } else if (!parsedSequenceNumber && parts.length === 2) {
-        // If only 2 parts, assume tag_type and sequence_number
-        parsedSequenceNumber = parts[1];
-      }
-    }
+    const parsed = parseAssetTag(full_tag);
+    if (!parsedTagType) parsedTagType = parsed.tag_type;
+    if (!parsedSequenceNumber) parsedSequenceNumber = parsed.sequence_number;
+    if (!parsedDepartment) parsedDepartment = parsed.department;
   }
   console.log(`Parsed tag_type: ${parsedTagType}, sequence_number: ${parsedSequenceNumber}, department: ${parsedDepartment}`);
   try {
@@ -1330,44 +1356,18 @@ export async function getAssetDetailsHandler(args: any) {
     let parsedDepartment = '';
 
     if (identifier_type === 'tag_number') {
-      // Parse tag number: can be "V", "V 2210 H", or "V 2210 H EPE"
-      const parts = identifier.trim().split(/\s+/);
-      if (parts.length >= 1) {
-        parsedTagType = parts[0];
-        
-        if (parts.length >= 2) {
-          // Check if the last part looks like a department (3 characters)
-          const lastPart = parts[parts.length - 1];
-          if (lastPart.length === 3 && /^[A-Z]{3}$/.test(lastPart)) {
-            parsedDepartment = lastPart;
-            if (parts.length > 2) {
-              parsedSequenceNumber = parts.slice(1, -1).join(' ');
-            }
-          } else {
-            // Last part is not a department, so everything after tag_type is sequence_number
-            parsedSequenceNumber = parts.slice(1).join(' ');
-          }
-        }
-        
-        console.log(`Parsed tag number - Type: ${parsedTagType}, Sequence: ${parsedSequenceNumber}, Department: ${parsedDepartment}`);
-        
-        // Build query dynamically
-        query = `SELECT * FROM [BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE] WHERE 1=1`;
-        
-        if (parsedTagType) {
-          query += ` AND [TAG_TYPE] = @tag_type`;
-        }
-        
-        if (parsedSequenceNumber) {
-          query += ` AND [SEQUENCE NUMBER] = @sequence_number`;
-        }
-        
-        if (parsedDepartment) {
-          query += ` AND [DEPARTMENT] = @department`;
-        }
-      } else {
+      // Parse tag number using the robust parser
+      const parsed = parseAssetTag(identifier);
+
+      if (!parsed.tag_type) {
         throw new Error('Invalid tag number format. Expected at least: TAG_TYPE');
       }
+
+      parsedTagType = parsed.tag_type;
+      parsedSequenceNumber = parsed.sequence_number;
+      parsedDepartment = parsed.department;
+
+      console.log(`Parsed tag number - Type: ${parsedTagType}, Sequence: ${parsedSequenceNumber}, Department: ${parsedDepartment}`);
     } else {
       query = `SELECT * FROM [BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE]
                WHERE [SAP EQUIPMENT NUMBER] = @identifier`;
@@ -1762,8 +1762,10 @@ export async function validateAssetTagHandler(args: any) {
   const { tag_number } = args;
 
   try {
-    const parts = tag_number.trim().split(/\s+/);
-    if (parts.length < 3) {
+    const parsed = parseAssetTag(tag_number);
+
+    // Validate that we have at least a tag_type
+    if (!parsed.tag_type) {
       return {
         content: [
           {
@@ -1774,12 +1776,10 @@ export async function validateAssetTagHandler(args: any) {
       };
     }
 
-    const tag_type = parts[0];
-    const department = parts[parts.length - 1];
-    const sequence_number = parts.slice(1, -1).join(' ');
+    const { tag_type, sequence_number, department } = parsed;
 
     // Validate department (should be 3 characters)
-    if (department.length !== 3) {
+    if (department && department.length !== 3) {
       return {
         content: [
           {
