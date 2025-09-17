@@ -98,9 +98,11 @@ export class SimpleMcpServer {
 
               if (sessionId && transports[sessionId]) {
                 // Reuse existing transport
+                console.error(`Reusing existing transport for session: ${sessionId}`);
                 transport = transports[sessionId];
               } else if (!sessionId && isInitializeRequest(requestBody)) {
                 // New initialization request - create new server and transport
+                console.error('Creating new transport for session initialization');
                 const newServer = new Server(
                   {
                     name: "mcp-server",
@@ -119,16 +121,23 @@ export class SimpleMcpServer {
                 transport = new StreamableHTTPServerTransport({
                   sessionIdGenerator: () => require('crypto').randomUUID(),
                   onsessioninitialized: (newSessionId: string) => {
+                    console.error(`Session initialized: ${newSessionId}`);
                     transports[newSessionId] = transport;
                   },
                   enableDnsRebindingProtection: false, // Disable for local development
                 });
 
-                // Clean up transport when closed
+                                // Clean up transport when closed
                 transport.onclose = () => {
+                  console.error(`Cleaning up transport for session: ${transport.sessionId}`);
                   if (transport.sessionId) {
                     delete transports[transport.sessionId];
                   }
+                };
+
+                // Add error handling for transport
+                transport.onerror = (error: any) => {
+                  console.error(`Transport error for session ${transport.sessionId}:`, error);
                 };
 
                 // Connect the new server to the transport
@@ -175,6 +184,7 @@ export class SimpleMcpServer {
         }
       } else if (req.method === 'GET' && req.url === '/mcp') {
         // Handle GET requests for server-to-client notifications via SSE
+        console.error(`Handling GET request for SSE, session: ${req.headers['mcp-session-id']}`);
         const sessionId = req.headers['mcp-session-id'] as string | undefined;
         if (!sessionId || !transports[sessionId]) {
           if (!res.headersSent) {
@@ -188,6 +198,7 @@ export class SimpleMcpServer {
         await transport.handleRequest(req, res);
       } else if (req.method === 'DELETE' && req.url === '/mcp') {
         // Handle DELETE requests for session termination
+        console.error(`Handling DELETE request for session termination: ${req.headers['mcp-session-id']}`);
         const sessionId = req.headers['mcp-session-id'] as string | undefined;
         if (!sessionId || !transports[sessionId]) {
           if (!res.headersSent) {
