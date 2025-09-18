@@ -127,6 +127,28 @@ export const tools = [
     }
   },
   {
+    name: "get_distinct_values",
+    description: "Get distinct values from a column, capped at 50 unique values, plus the total count",
+    inputSchema: {
+      type: "object",
+      properties: {
+        table: {
+          type: "string",
+          description: "The fully qualified table name (schema.table) to get distinct values from"
+        },
+        column: {
+          type: "string",
+          description: "The column name to get distinct values from"
+        },
+        database: {
+          type: "string",
+          description: "The database to query (default is current database)"
+        }
+      },
+      required: ["table", "column"," database"]
+    }
+  },
+  {
     name: "search_assets",
     description: "Search for assets in BC_VLTS_DATA.BCAssetPropertiesViewByNameBCE with various filters",
     inputSchema: {

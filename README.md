@@ -1,3 +1,9 @@
+# Commands to update container
+git pull
+docker compose -p more-tools build
+docker compose -p more-tools up -d
+
+
 # MCP Server for On-Prem Database Access
 
 This project implements a Model Context Protocol (MCP) server that provides secure access to on-premise MSSQL databases at kgaprd-sql.gkaneka.local. It allows MCP clients to execute SQL queries, retrieve database metadata, and perform various database operations through a standardized protocol.
