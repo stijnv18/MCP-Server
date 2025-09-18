@@ -280,22 +280,19 @@ export const tools = [
   },
   {
     name: "get_asset_details",
-    description: "Get detailed asset information by tag number (full or partial) or SAP equipment number",
+    description: "Get detailed asset information by asset tag or SAP equipment number",
     inputSchema: {
       type: "object",
       properties: {
-        identifier: {
+        asset_tag: {
           type: "string",
-          description: "Asset identifier (tag number like 'V 2210 H EPE', 'V 2210 H', or 'V'; or SAP equipment number)"
+          description: "Asset tag number (e.g., 'V 2210 H EPE', 'V 2210 H', or 'V')"
         },
-        identifier_type: {
+        sap_equipment_number: {
           type: "string",
-          description: "Type of identifier provided",
-          enum: ["tag_number", "sap_equipment"],
-          default: "tag_number"
+          description: "SAP equipment number"
         }
-      },
-      required: ["identifier"]
+      }
     }
   },
   {
@@ -1270,45 +1267,80 @@ export async function searchDocumentsHandler(args: any) {
 }
 
 export async function getAssetDetailsHandler(args: any) {
-  const { identifier, identifier_type = 'tag_number' } = args;
+  const { asset_tag, sap_equipment_number } = args;
+
+  // Validate that at least one identifier is provided
+  if (!asset_tag && !sap_equipment_number) {
+    return {
+      content: [
+        {
+          type: "text",
+          text: "Error: At least one of asset_tag or sap_equipment_number must be provided"
+        }
+      ]
+    };
+  }
 
   try {
     const pool = getPool();
     let query = '';
-    
-    if (identifier_type === 'tag_number') {
-      // Use simple LIKE query on the asset number check field
-      query = `SELECT * FROM [BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE]
-               WHERE [c_psAsset_Asset_Number_Check] LIKE @identifier`;
-    } else {
-      query = `SELECT * FROM [BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE]
-               WHERE [SAP EQUIPMENT NUMBER] = @identifier`;
+    let request = pool.request();
+
+    // Build query based on provided parameters
+    const conditions = [];
+    const params = [];
+
+    if (asset_tag) {
+      conditions.push("[c_psAsset_Asset_Number_Check] LIKE @asset_tag");
+      request = request.input('asset_tag', `%${asset_tag.replace(/\s+/g, '')}%`);
     }
 
+    if (sap_equipment_number) {
+      conditions.push("[SAP EQUIPMENT NUMBER] = @sap_equipment_number");
+      request = request.input('sap_equipment_number', sap_equipment_number);
+    }
+
+    query = `SELECT * FROM [BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE]
+             WHERE ${conditions.join(' OR ')}`;
+
     console.log(`Executing query: ${query}`);
-    const result = await pool.request()
-      .input('identifier', identifier_type === 'tag_number' ? `%${identifier.replace(/\s+/g, '')}%` : identifier)
-      .query(query);
+    const result = await request.query(query);
 
     if (result.recordset.length === 0) {
+      const searchCriteria = [];
+      if (asset_tag) searchCriteria.push(`asset_tag: ${asset_tag}`);
+      if (sap_equipment_number) searchCriteria.push(`sap_equipment_number: ${sap_equipment_number}`);
+
       return {
         content: [
           {
             type: "text",
-            text: `No asset found with identifier: ${identifier}`
+            text: `No asset found with the provided criteria: ${searchCriteria.join(', ')}`
           }
         ]
       };
     }
 
-    return {
-      content: [
-        {
-          type: "text",
-          text: `Asset details:\n${JSON.stringify(result.recordset[0], null, 2)}`
-        }
-      ]
-    };
+    // If multiple results, return all of them
+    if (result.recordset.length === 1) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Asset details:\n${JSON.stringify(result.recordset[0], null, 2)}`
+          }
+        ]
+      };
+    } else {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Found ${result.recordset.length} assets matching the criteria:\n${JSON.stringify(result.recordset, null, 2)}`
+          }
+        ]
+      };
+    }
   } catch (error) {
     const sentryDsn = process.env.SENTRY_DSN || 'your-sentry-dsn-here';
     if (sentryDsn && sentryDsn !== 'your-sentry-dsn-here') {
