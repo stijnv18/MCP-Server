@@ -145,7 +145,7 @@ export const tools = [
           description: "The database to query (default is current database)"
         }
       },
-      required: ["table", "column"," database"]
+      required: ["table", "column","database"]
     }
   },
   {
