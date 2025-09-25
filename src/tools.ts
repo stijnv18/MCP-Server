@@ -940,12 +940,12 @@ export async function searchAssetsHandler(args: any) {
     }
 
     if (!include_retired) {
-      query += ` AND [c_psAsset_AsBuiltStatus] != 'retired'`;
+      query += `AND ([c_psAsset_AsBuiltStatus] != 'retired' OR [c_psAsset_AsBuiltStatus] IS NULL)`;
     }
 
     console.log(`Executing query: ${query}`);
     const result = await pool.request()
-      .input('asset_number', asset_number ? `%${asset_number.replace(/\s+/g, '')}%` : '')
+      .input('asset_number', asset_number ? `${asset_number.replace(/\s+/g, '')}%` : '')
       .input('department', department || '')
       .input('project_number', project_number ? `%${project_number}%` : '')
       .input('sap_equipment_number', sap_equipment_number || '')
@@ -1013,7 +1013,7 @@ export async function searchAssetsHandler(args: any) {
     }
 
     if (!include_retired) {
-      countQuery += ` AND [c_psAsset_AsBuiltStatus] != 'retired'`;
+      countQuery += `AND ([c_psAsset_AsBuiltStatus] != 'retired' OR [c_psAsset_AsBuiltStatus] IS NULL)`;
     }
 
     console.log(`Executing count query: ${countQuery}`);
@@ -1206,7 +1206,7 @@ export async function searchDocumentsHandler(args: any) {
     }
 
     if (!include_retired) {
-      query += ` AND [c_psDocument_documentAsBuiltSt] != 'Retired'`;
+      query += `AND ([c_psDocument_documentAsBuiltSt] != 'retired' OR [c_psDocument_documentAsBuiltSt] IS NULL)`;
     }
 
     if (is_plant_environment === true) {
@@ -1258,7 +1258,7 @@ export async function searchDocumentsHandler(args: any) {
     }
 
     if (!include_retired) {
-      countQuery += ` AND [c_psDocument_documentAsBuiltSt] != 'Retired'`;
+      countQuery += ` AND ([c_psDocument_documentAsBuiltSt] != 'Retired' OR [c_psDocument_documentAsBuiltSt] IS NULL)`;
     }
 
     if (is_plant_environment === true) {
@@ -1468,7 +1468,7 @@ export async function getRelatedAssetsHandler(args: any) {
                  WHERE [PROJECT NUMBER] LIKE @project_number`;
 
     if (!include_retired) {
-      query += ` AND [c_psDocument_documentAsBuiltSt] != 'retired'`;
+      query += `AND ([c_psDocument_documentAsBuiltSt] != 'retired' OR [c_psDocument_documentAsBuiltSt] IS NULL)`;
     }
 
     console.log(`Executing query: ${query}`);
@@ -1481,7 +1481,7 @@ export async function getRelatedAssetsHandler(args: any) {
                       WHERE [PROJECT NUMBER] LIKE @project_number`;
 
     if (!include_retired) {
-      countQuery += ` AND [c_psDocument_documentAsBuiltSt] != 'retired'`;
+      countQuery += ` AND ([c_psDocument_documentAsBuiltSt] != 'retired' OR [c_psDocument_documentAsBuiltSt] IS NULL)`;
     }
 
     console.log(`Executing count query: ${countQuery}`);
@@ -1567,7 +1567,7 @@ export async function getRelatedDocumentsHandler(args: any) {
     }
 
     if (!include_retired) {
-      query += ` AND d.[c_psDocument_DocumentAsBuiltSt] != 'Retired'`;
+      query += ` AND (d.[c_psDocument_DocumentAsBuiltSt] != 'Retired' AND d.[c_psDocument_DocumentAsBuiltSt] IS NOT NULL)`;
 
     }
 
@@ -1607,7 +1607,7 @@ export async function getRelatedDocumentsHandler(args: any) {
     }
 
     if (!include_retired) {
-      countQuery += ` AND d.[c_psDocument_documentAsBuiltSt] != 'Retired'`;
+      countQuery += ` AND (d.[c_psDocument_documentAsBuiltSt] != 'Retired' AND d.[c_psDocument_documentAsBuiltSt] IS NOT NULL)`;
     }
 
     console.log(`Executing count query: ${countQuery}`);
@@ -1693,7 +1693,7 @@ export async function getAssetsForDocumentHandler(args: any) {
     }
 
     if (!include_retired) {
-      query += ` AND d.[c_psDocument_DocumentAsBuiltSt] != 'Retired'`;
+      query += ` AND (d.[c_psDocument_DocumentAsBuiltSt] != 'Retired' AND d.[c_psDocument_DocumentAsBuiltSt] IS NOT NULL)`;
     }
 
     query += ` ORDER BY a.[c_psAsset_Asset_Number_Check]`;
@@ -1727,7 +1727,7 @@ export async function getAssetsForDocumentHandler(args: any) {
     }
 
     if (!include_retired) {
-      countQuery += ` AND d.[c_psDocument_DocumentAsBuiltSt] != 'Retired'`;
+      countQuery += ` AND (d.[c_psDocument_DocumentAsBuiltSt] != 'Retired' OR d.[c_psDocument_DocumentAsBuiltSt] IS NULL)`;
     }
 
     console.log(`Executing count query: ${countQuery}`);
