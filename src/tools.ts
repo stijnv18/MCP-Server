@@ -1033,11 +1033,27 @@ export async function searchAssetsHandler(args: any) {
 
     const totalCount = countResult.recordset[0].total_count;
 
+    // Helper function to filter out null/undefined values
+    const filterNonNullValues = (obj: any): any => {
+      if (obj === null || obj === undefined) return obj;
+      if (typeof obj !== 'object') return obj;
+      if (Array.isArray(obj)) {
+        return obj.map(filterNonNullValues).filter(item => item !== null && item !== undefined);
+      }
+      const filtered: any = {};
+      for (const [key, value] of Object.entries(obj)) {
+        if (value !== null && value !== undefined) {
+          filtered[key] = filterNonNullValues(value);
+        }
+      }
+      return filtered;
+    };
+
     return {
       content: [
         {
           type: "text",
-          text: `Found ${result.recordset.length} assets (total: ${totalCount}):\n${JSON.stringify(result.recordset, null, 2)}`
+          text: `Found ${result.recordset.length} assets (total: ${totalCount}):\n${JSON.stringify(result.recordset.map(filterNonNullValues), null, 2)}`
         }
       ]
     };
@@ -1314,7 +1330,7 @@ export async function getAssetDetailsHandler(args: any) {
 
     if (asset_tag) {
       conditions.push("[c_psAsset_Asset_Number_Check] LIKE @asset_tag");
-      request = request.input('asset_tag', `%${asset_tag.replace(/\s+/g, '')}%`);
+      request = request.input('asset_tag', `${asset_tag.replace(/\s+/g, '')}%`);
     }
 
     if (sap_equipment_number) {
@@ -1343,13 +1359,29 @@ export async function getAssetDetailsHandler(args: any) {
       };
     }
 
+    // Helper function to filter out null/undefined values
+    const filterNonNullValues = (obj: any): any => {
+      if (obj === null || obj === undefined) return obj;
+      if (typeof obj !== 'object') return obj;
+      if (Array.isArray(obj)) {
+        return obj.map(filterNonNullValues).filter(item => item !== null && item !== undefined);
+      }
+      const filtered: any = {};
+      for (const [key, value] of Object.entries(obj)) {
+        if (value !== null && value !== undefined) {
+          filtered[key] = filterNonNullValues(value);
+        }
+      }
+      return filtered;
+    };
+
     // If multiple results, return all of them
     if (result.recordset.length === 1) {
       return {
         content: [
           {
             type: "text",
-            text: `Asset details:\n${JSON.stringify(result.recordset[0], null, 2)}`
+            text: `Asset details:\n${JSON.stringify(filterNonNullValues(result.recordset[0]), null, 2)}`
           }
         ]
       };
@@ -1358,7 +1390,7 @@ export async function getAssetDetailsHandler(args: any) {
         content: [
           {
             type: "text",
-            text: `Found ${result.recordset.length} assets matching the criteria:\n${JSON.stringify(result.recordset, null, 2)}`
+            text: `Found ${result.recordset.length} assets matching the criteria:\n${JSON.stringify(result.recordset.map(filterNonNullValues), null, 2)}`
           }
         ]
       };
