@@ -1468,7 +1468,7 @@ export async function getRelatedAssetsHandler(args: any) {
                  WHERE [PROJECT NUMBER] LIKE @project_number`;
 
     if (!include_retired) {
-      query += ` AND ([c_psDocument_documentAsBuiltSt] != 'retired' OR [c_psDocument_documentAsBuiltSt] IS NULL)`;
+      query += ` AND ([c_psAsset_AsBuiltStatus] != 'retired' OR [c_psAsset_AsBuiltStatus] IS NULL)`;
     }
 
     console.log(`Executing query: ${query}`);
@@ -1481,7 +1481,7 @@ export async function getRelatedAssetsHandler(args: any) {
                       WHERE [PROJECT NUMBER] LIKE @project_number`;
 
     if (!include_retired) {
-      countQuery += ` AND ([c_psDocument_documentAsBuiltSt] != 'retired' OR [c_psDocument_documentAsBuiltSt] IS NULL)`;
+      countQuery += ` AND ([c_psAsset_AsBuiltStatus] != 'retired' OR [c_psAsset_AsBuiltStatus] IS NULL)`;
     }
 
     console.log(`Executing count query: ${countQuery}`);
