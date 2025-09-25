@@ -940,7 +940,7 @@ export async function searchAssetsHandler(args: any) {
     }
 
     if (!include_retired) {
-      query += `AND ([c_psAsset_AsBuiltStatus] != 'retired' OR [c_psAsset_AsBuiltStatus] IS NULL)`;
+      query += ` AND ([c_psAsset_AsBuiltStatus] != 'retired' OR [c_psAsset_AsBuiltStatus] IS NULL)`;
     }
 
     console.log(`Executing query: ${query}`);
@@ -1013,7 +1013,7 @@ export async function searchAssetsHandler(args: any) {
     }
 
     if (!include_retired) {
-      countQuery += `AND ([c_psAsset_AsBuiltStatus] != 'retired' OR [c_psAsset_AsBuiltStatus] IS NULL)`;
+      countQuery += ` AND ([c_psAsset_AsBuiltStatus] != 'retired' OR [c_psAsset_AsBuiltStatus] IS NULL)`;
     }
 
     console.log(`Executing count query: ${countQuery}`);
@@ -1206,7 +1206,7 @@ export async function searchDocumentsHandler(args: any) {
     }
 
     if (!include_retired) {
-      query += `AND ([c_psDocument_documentAsBuiltSt] != 'retired' OR [c_psDocument_documentAsBuiltSt] IS NULL)`;
+      query += ` AND ([c_psDocument_documentAsBuiltSt] != 'retired' OR [c_psDocument_documentAsBuiltSt] IS NULL)`;
     }
 
     if (is_plant_environment === true) {
@@ -1468,7 +1468,7 @@ export async function getRelatedAssetsHandler(args: any) {
                  WHERE [PROJECT NUMBER] LIKE @project_number`;
 
     if (!include_retired) {
-      query += `AND ([c_psDocument_documentAsBuiltSt] != 'retired' OR [c_psDocument_documentAsBuiltSt] IS NULL)`;
+      query += ` AND ([c_psDocument_documentAsBuiltSt] != 'retired' OR [c_psDocument_documentAsBuiltSt] IS NULL)`;
     }
 
     console.log(`Executing query: ${query}`);
