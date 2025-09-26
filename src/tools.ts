@@ -332,30 +332,6 @@ export const tools = [
     }
   },
   {
-    name: "get_related_assets",
-    description: "Get all assets related to a specific project",
-    inputSchema: {
-      type: "object",
-      properties: {
-        project_number: {
-          type: "string",
-          description: "Project number to find related assets for"
-        },
-        include_retired: {
-          type: "boolean",
-          description: "Include retired/decommissioned assets (default: false)",
-          default: false
-        },
-        limit: {
-          type: "number",
-          description: "Maximum number of results to return (default: 100)",
-          default: 100
-        }
-      },
-      required: ["project_number"]
-    }
-  },
-  {
     name: "get_assets_for_document",
     description: "Get assets related to a specific document using AssetDocRefViewCoPilot",
     inputSchema: {
@@ -387,7 +363,7 @@ export const tools = [
     }
   },
   {
-    name: "get_related_documents",
+    name: "get_related_documents_for_asset",
     description: "Get documents related to a specific project or asset using AssetDocRefViewCoPilot",
     inputSchema: {
       type: "object",
@@ -1459,63 +1435,7 @@ export async function getProjectDetailsHandler(args: any) {
   }
 }
 
-export async function getRelatedAssetsHandler(args: any) {
-  const { project_number, include_retired = false, limit = 100 } = args;
-
-  try {
-    const pool = getPool();
-    let query = `SELECT TOP ${limit} * FROM [BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE]
-                 WHERE [PROJECT NUMBER] LIKE @project_number`;
-
-    if (!include_retired) {
-      query += ` AND ([c_psAsset_AsBuiltStatus] != 'retired' OR [c_psAsset_AsBuiltStatus] IS NULL)`;
-    }
-
-    console.log(`Executing query: ${query}`);
-    const result = await pool.request()
-      .input('project_number', `%${project_number}%`)
-      .query(query);
-
-    // Execute count query to get total results
-    let countQuery = `SELECT COUNT(*) AS total_count FROM [BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE]
-                      WHERE [PROJECT NUMBER] LIKE @project_number`;
-
-    if (!include_retired) {
-      countQuery += ` AND ([c_psAsset_AsBuiltStatus] != 'retired' OR [c_psAsset_AsBuiltStatus] IS NULL)`;
-    }
-
-    console.log(`Executing count query: ${countQuery}`);
-    const countResult = await pool.request()
-      .input('project_number', `%${project_number}%`)
-      .query(countQuery);
-
-    const totalCount = countResult.recordset[0].total_count;
-
-    return {
-      content: [
-        {
-          type: "text",
-          text: `Found ${result.recordset.length} assets (total: ${totalCount}) related to project ${project_number}:\n${JSON.stringify(result.recordset, null, 2)}`
-        }
-      ]
-    };
-  } catch (error) {
-    const sentryDsn = process.env.SENTRY_DSN || 'your-sentry-dsn-here';
-    if (sentryDsn && sentryDsn !== 'your-sentry-dsn-here') {
-      Sentry.captureException(error);
-    }
-    return {
-      content: [
-        {
-          type: "text",
-          text: `Error getting related assets: ${error instanceof Error ? error.message : String(error)}`
-        }
-      ]
-    };
-  }
-}
-
-export async function getRelatedDocumentsHandler(args: any) {
+export async function getRelatedDocumentsForAssetHandler(args: any) {
   const { project_number, asset_tag, sap_equipment_number, department, include_retired = false, limit = 50 } = args;
 
   try {
@@ -1832,8 +1752,7 @@ const toolHandlers: Record<string, (args: any) => Promise<any>> = {
   search_documents: searchDocumentsHandler,
   get_asset_details: getAssetDetailsHandler,
   get_project_details: getProjectDetailsHandler,
-  get_related_assets: getRelatedAssetsHandler,
-  get_related_documents: getRelatedDocumentsHandler,
+  get_related_documents_for_asset: getRelatedDocumentsForAssetHandler,
   get_assets_for_document: getAssetsForDocumentHandler,
   get_database_schema: getDatabaseSchemaHandler,
 };
