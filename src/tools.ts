@@ -370,7 +370,8 @@ export const tools = [
       properties: {
         project_number: {
           type: "string",
-          description: "Project number to find related documents for"
+          description: "Project number to find related documents for (default: '-' for plant environment)",
+          default: "-"
         },
         asset_tag: {
           type: "string",
@@ -1436,21 +1437,12 @@ export async function getProjectDetailsHandler(args: any) {
 }
 
 export async function getRelatedDocumentsForAssetHandler(args: any) {
-  const { project_number, asset_tag, sap_equipment_number, department, include_retired = false, limit = 50 } = args;
+  const { project_number = "-", asset_tag, sap_equipment_number, department, include_retired = false, limit = 50 } = args;
 
   try {
     const pool = getPool();
 
-    if (!project_number && !asset_tag && !sap_equipment_number) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: "Error: Must provide either project_number, asset_tag, or sap_equipment_number"
-          }
-        ]
-      };
-    }
+    // With default project_number of "-", we always have at least one search parameter
 
     let query = `
       SELECT TOP ${limit}
