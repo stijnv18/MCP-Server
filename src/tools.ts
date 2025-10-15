@@ -861,9 +861,12 @@ export async function searchAssetsHandler(args: any) {
     limit = 50
   } = args;
 
+  // Cap limit at 50
+  const cappedLimit = Math.min(limit, 50);
+
   try {
     const pool = getPool();
-    let query = `SELECT TOP ${limit} * FROM [BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE] WHERE 1=1`;
+    let query = `SELECT TOP ${cappedLimit} * FROM [BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE] WHERE 1=1`;
 
     // Use asset_number with LIKE pattern if provided
     if (asset_number) {
@@ -1053,9 +1056,12 @@ export async function searchAssetsHandler(args: any) {
 export async function searchProjectsHandler(args: any) {
   const { project_number, project_type, project_status = 'all', is_plant_environment, limit = 50 } = args;
 
+  // Cap limit at 50
+  const cappedLimit = Math.min(limit, 50);
+
   try {
     const pool = getPool();
-    let query = `SELECT TOP ${limit} * FROM [BC_VLTS_DATA].[dbo].[ProjectPropertiesView] WHERE 1=1`;
+    let query = `SELECT TOP ${cappedLimit} * FROM [BC_VLTS_DATA].[dbo].[ProjectPropertiesView] WHERE 1=1`;
 
     if (project_number) {
       query += ` AND [ProjectNumber] LIKE @project_number`;
@@ -1150,9 +1156,12 @@ export async function searchDocumentsHandler(args: any) {
     limit = 50
   } = args;
 
+  // Cap limit at 50
+  const cappedLimit = Math.min(limit, 50);
+
   try {
     const pool = getPool();
-    let query = `SELECT TOP ${limit} * FROM [AIM_KANEKA].[dbo].[DocumentPropertiesViewCoPilot] WHERE 1=1`;
+    let query = `SELECT TOP ${cappedLimit} * FROM [AIM_KANEKA].[dbo].[DocumentPropertiesViewCoPilot] WHERE 1=1`;
 
     if (title) {
       query += ` AND [c_psDocument_DocumentTitle] LIKE @title`;
@@ -1439,13 +1448,16 @@ export async function getProjectDetailsHandler(args: any) {
 export async function getRelatedDocumentsForAssetHandler(args: any) {
   const { project_number = "-", asset_tag, sap_equipment_number, department, include_retired = false, limit = 50 } = args;
 
+  // Cap limit at 50
+  const cappedLimit = Math.min(limit, 50);
+
   try {
     const pool = getPool();
 
     // With default project_number of "-", we always have at least one search parameter
 
     let query = `
-      SELECT TOP ${limit}
+      SELECT TOP ${cappedLimit}
         d.[c_psDocument_DocumentTitle],
         d.[FileName],
         a.[Project Number],
@@ -1559,6 +1571,9 @@ export async function getRelatedDocumentsForAssetHandler(args: any) {
 export async function getAssetsForDocumentHandler(args: any) {
   const { document_title, file_name, department, include_retired = false, limit = 50 } = args;
 
+  // Cap limit at 50
+  const cappedLimit = Math.min(limit, 50);
+
   try {
     const pool = getPool();
 
@@ -1574,7 +1589,7 @@ export async function getAssetsForDocumentHandler(args: any) {
     }
 
     let query = `
-      SELECT TOP ${limit}
+      SELECT TOP ${cappedLimit}
         a.[TAG NUMBER] as AssetTag,
         a.[SAP EQUIPMENT NUMBER] as SAPEquipmentNumber,
         a.[PROJECT NUMBER] as ProjectNumber,
