@@ -128,7 +128,7 @@ export const tools = [
   },
   {
     name: "get_distinct_values",
-    description: "Get distinct values from a column, capped at 50 unique values, plus the total count",
+    description: "Get distinct values from a column, capped at 25 unique values, plus the total count",
     inputSchema: {
       type: "object",
       properties: {
@@ -209,8 +209,8 @@ export const tools = [
         },
         limit: {
           type: "number",
-          description: "Maximum number of results to return (default: 50)",
-          default: 50
+          description: "Maximum number of results to return (default: 25)",
+          default: 25
         }
       }
     }
@@ -242,8 +242,8 @@ export const tools = [
         },
         limit: {
           type: "number",
-          description: "Maximum number of results to return (default: 50)",
-          default: 50
+          description: "Maximum number of results to return (default: 25)",
+          default: 25
         }
       }
     }
@@ -293,8 +293,8 @@ export const tools = [
         },
         limit: {
           type: "number",
-          description: "Maximum number of results to return (default: 50)",
-          default: 50
+          description: "Maximum number of results to return (default: 25)",
+          default: 25
         }
       },
       required: []
@@ -356,8 +356,8 @@ export const tools = [
         },
         limit: {
           type: "number",
-          description: "Maximum number of results to return (default: 50)",
-          default: 50
+          description: "Maximum number of results to return (default: 25)",
+          default: 25
         }
       }
     }
@@ -392,8 +392,8 @@ export const tools = [
         },
         limit: {
           type: "number",
-          description: "Maximum number of results to return (default: 50)",
-          default: 50
+          description: "Maximum number of results to return (default: 25)",
+          default: 25
         }
       }
     }
@@ -800,7 +800,7 @@ export async function getDistinctValuesHandler(args: any) {
 
   try {
     const pool = getPool();
-    let distinctQuery = `SELECT DISTINCT TOP 50 [${column}] FROM ${table}`;
+    let distinctQuery = `SELECT DISTINCT TOP 25 [${column}] FROM ${table}`;
     let countQuery = `SELECT COUNT(DISTINCT [${column}]) AS total_count FROM ${table}`;
     if (database) {
       distinctQuery = `USE [${database}]; ${distinctQuery}`;
@@ -858,11 +858,11 @@ export async function searchAssetsHandler(args: any) {
     subprocess,
     in_workflow,
     include_retired = false,
-    limit = 50
+    limit = 25
   } = args;
 
-  // Cap limit at 50
-  const cappedLimit = Math.min(limit, 50);
+  // Cap limit at 25
+  const cappedLimit = Math.min(limit, 25);
 
   try {
     const pool = getPool();
@@ -1054,10 +1054,10 @@ export async function searchAssetsHandler(args: any) {
 }
 
 export async function searchProjectsHandler(args: any) {
-  const { project_number, project_type, project_status = 'all', is_plant_environment, limit = 50 } = args;
+  const { project_number, project_type, project_status = 'all', is_plant_environment, limit = 25 } = args;
 
-  // Cap limit at 50
-  const cappedLimit = Math.min(limit, 50);
+  // Cap limit at 25
+  const cappedLimit = Math.min(limit, 25);
 
   try {
     const pool = getPool();
@@ -1153,11 +1153,11 @@ export async function searchDocumentsHandler(args: any) {
     reference_drawing,
     include_retired = false,
     is_plant_environment,
-    limit = 50
+    limit = 25
   } = args;
 
-  // Cap limit at 50
-  const cappedLimit = Math.min(limit, 50);
+  // Cap limit at 25
+  const cappedLimit = Math.min(limit, 25);
 
   try {
     const pool = getPool();
@@ -1446,10 +1446,10 @@ export async function getProjectDetailsHandler(args: any) {
 }
 
 export async function getRelatedDocumentsForAssetHandler(args: any) {
-  const { project_number = "-", asset_tag, sap_equipment_number, department, include_retired = false, limit = 50 } = args;
+  const { project_number = "-", asset_tag, sap_equipment_number, department, include_retired = false, limit = 25 } = args;
 
-  // Cap limit at 50
-  const cappedLimit = Math.min(limit, 50);
+  // Cap limit at 25
+  const cappedLimit = Math.min(limit, 25);
 
   try {
     const pool = getPool();
@@ -1569,10 +1569,10 @@ export async function getRelatedDocumentsForAssetHandler(args: any) {
 }
 
 export async function getAssetsForDocumentHandler(args: any) {
-  const { document_title, file_name, department, include_retired = false, limit = 50 } = args;
+  const { document_title, file_name, department, include_retired = false, limit = 25 } = args;
 
-  // Cap limit at 50
-  const cappedLimit = Math.min(limit, 50);
+  // Cap limit at 25
+  const cappedLimit = Math.min(limit, 25);
 
   try {
     const pool = getPool();
