@@ -35,3 +35,12 @@ export const dbConfig: DbConfig = {
 export const apiKey = process.env.API_KEY || 'your-static-api-key-here';
 
 export const sentryDsn = process.env.SENTRY_DSN || 'your-sentry-dsn-here';
+
+// Site-specific database and view configuration
+// Set these env vars to point to the correct databases for each site (KB, KNA, KM, ...)
+export const assetDb = process.env.ASSET_DB || 'BC_VLTS_DATA';
+export const documentDb = process.env.DOCUMENT_DB || 'AIM_KANEKA';
+export const assetView = process.env.ASSET_VIEW || 'BCAssetPropertiesViewByNameBCE';
+export const projectView = process.env.PROJECT_VIEW || 'ProjectPropertiesView';
+export const documentView = process.env.DOCUMENT_VIEW || 'DocumentPropertiesViewCoPilot';
+export const assetDocRefView = process.env.ASSET_DOC_REF_VIEW || 'AssetDocRefViewCoPilot';

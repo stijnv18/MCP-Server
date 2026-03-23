@@ -1,6 +1,7 @@
 import { getPool } from './db.js';
 import * as Sentry from '@sentry/node';
 import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
+import { assetDb, documentDb, assetView, projectView, documentView, assetDocRefView } from './config.js';
 
 
 export const tools = [
@@ -150,7 +151,7 @@ export const tools = [
   },
   {
     name: "search_assets",
-    description: "Search for assets in BC_VLTS_DATA.BCAssetPropertiesViewByNameBCE with various filters",
+    description: `Search for assets in ${assetDb}.${assetView} with various filters`,
     inputSchema: {
       type: "object",
       properties: {
@@ -217,7 +218,7 @@ export const tools = [
   },
   {
     name: "search_projects",
-    description: "Search for projects in BC_VLTS_DATA.ProjectPropertiesView",
+    description: `Search for projects in ${assetDb}.${projectView}`,
     inputSchema: {
       type: "object",
       properties: {
@@ -250,7 +251,7 @@ export const tools = [
   },
   {
     name: "search_documents",
-    description: "Search for documents in AIM_KANEKA DocumentPropertiesViewCoPilot",
+    description: `Search for documents in ${documentDb} ${documentView}`,
     inputSchema: {
       type: "object",
       properties: {
@@ -284,7 +285,7 @@ export const tools = [
         },
         include_retired: {
           type: "boolean",
-          description: "Include retired/decommissioned documents ([c_psDocument_documentAsBuiltSt]='Retired'). Default is false",
+          description: "Include retired/decommissioned documents ([c_psApproval_WFStateApproval]='Retired'). Default is false",
           default: false
         },
         is_plant_environment: {
@@ -333,7 +334,7 @@ export const tools = [
   },
   {
     name: "get_assets_for_document",
-    description: "Get assets related to a specific document using AssetDocRefViewCoPilot",
+    description: `Get assets related to a specific document using ${assetDocRefView}`,
     inputSchema: {
       type: "object",
       properties: {
@@ -364,7 +365,7 @@ export const tools = [
   },
   {
     name: "get_related_documents_for_asset",
-    description: "Get documents related to a specific project or asset using AssetDocRefViewCoPilot",
+    description: `Get documents related to a specific project or asset using ${assetDocRefView}`,
     inputSchema: {
       type: "object",
       properties: {
@@ -400,14 +401,14 @@ export const tools = [
   },
   {
     name: "get_database_schema",
-    description: "Get schema information for specific databases (BC_VLTS_DATA or AIM_KANEKA)",
+    description: `Get schema information for specific databases (${assetDb} or ${documentDb})`,
     inputSchema: {
       type: "object",
       properties: {
         database: {
           type: "string",
           description: "Database name",
-          enum: ["BC_VLTS_DATA", "AIM_KANEKA"]
+          enum: [assetDb, documentDb]
         },
         include_views: {
           type: "boolean",
@@ -866,7 +867,7 @@ export async function searchAssetsHandler(args: any) {
 
   try {
     const pool = getPool();
-    let query = `SELECT TOP ${cappedLimit} * FROM [BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE] WHERE 1=1`;
+    let query = `SELECT TOP ${cappedLimit} * FROM [${assetDb}].[dbo].[${assetView}] WHERE 1=1`;
 
     // Use asset_number with LIKE pattern if provided
     if (asset_number) {
@@ -920,7 +921,7 @@ export async function searchAssetsHandler(args: any) {
     }
 
     if (!include_retired) {
-      query += ` AND ([c_psAsset_AsBuiltStatus] != 'retired' OR [c_psAsset_AsBuiltStatus] IS NULL)`;
+      query += ` AND ([StateText] != 'Retired' OR [StateText] IS NULL)`;
     }
 
     console.log(`Executing query: ${query}`);
@@ -939,7 +940,7 @@ export async function searchAssetsHandler(args: any) {
       .query(query);
 
     // Execute count query to get total results
-    let countQuery = `SELECT COUNT(*) AS total_count FROM [BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE] WHERE 1=1`;
+    let countQuery = `SELECT COUNT(*) AS total_count FROM [${assetDb}].[dbo].[${assetView}] WHERE 1=1`;
 
     // Use asset_number with LIKE pattern if provided
     if (asset_number) {
@@ -993,7 +994,7 @@ export async function searchAssetsHandler(args: any) {
     }
 
     if (!include_retired) {
-      countQuery += ` AND ([c_psAsset_AsBuiltStatus] != 'retired' OR [c_psAsset_AsBuiltStatus] IS NULL)`;
+      countQuery += ` AND ([StateText] != 'Retired' OR [StateText] IS NULL)`;
     }
 
     console.log(`Executing count query: ${countQuery}`);
@@ -1061,7 +1062,7 @@ export async function searchProjectsHandler(args: any) {
 
   try {
     const pool = getPool();
-    let query = `SELECT TOP ${cappedLimit} * FROM [BC_VLTS_DATA].[dbo].[ProjectPropertiesView] WHERE 1=1`;
+    let query = `SELECT TOP ${cappedLimit} * FROM [${assetDb}].[dbo].[${projectView}] WHERE 1=1`;
 
     if (project_number) {
       query += ` AND [ProjectNumber] LIKE @project_number`;
@@ -1089,7 +1090,7 @@ export async function searchProjectsHandler(args: any) {
       .query(query);
 
     // Execute count query to get total results
-    let countQuery = `SELECT COUNT(*) AS total_count FROM [BC_VLTS_DATA].[dbo].[ProjectPropertiesView] WHERE 1=1`;
+    let countQuery = `SELECT COUNT(*) AS total_count FROM [${assetDb}].[dbo].[${projectView}] WHERE 1=1`;
 
     if (project_number) {
       countQuery += ` AND [ProjectNumber] LIKE @project_number`;
@@ -1161,83 +1162,8 @@ export async function searchDocumentsHandler(args: any) {
 
   try {
     const pool = getPool();
-    let query = `SELECT TOP ${cappedLimit} 
-      [Filename],
-      [RevisionNumber],
-      [IsLatestRevision],
-      [ModificationDate],
-      [c_psDocument_DocumentAsBuiltSt],
-      [c_psDocument_DocumentCategory],
-      [c_psDocument_DocumentCategoryD],
-      [c_psDocument_DocumentDisciplin],
-      [c_psDocument_DocumentDisc_0],
-      [c_psDocument_DocumentSubCatego],
-      [c_psDocument_DocumentSubC_0],
-      [c_psDocument_DocumentTitle],
-      [c_psDocument_Dossiernumber],
-      [c_psDocument_Dossiersequencenu],
-      [c_psDocument_DrawingSize],
-      [c_psDocument_ExpiryDate],
-      [c_psDocument_ReferenceDrawingN],
-      [c_psDocument_ReferenceProjectN],
-      [c_psDocument_SheetNumber],
-      [c_psDocument_Vendor],
-      [c_psFuncLoc_Area],
-      [c_psFuncLoc_FL_SORTORDER],
-      [c_psFuncLoc_Floor],
-      [c_psFuncLoc_FunctionalLocation],
-      [c_psFuncLoc_FunctionalLoc_0],
-      [c_psFuncLoc_FunctionalLoc_1],
-      [c_psFuncLoc_Functionalloc_2],
-      [c_psFuncLoc_Process],
-      [c_psFuncLoc_ProcessDescription],
-      [c_psFuncLoc_ProcessDescri_0],
-      [c_psFuncLoc_ProcessNumber],
-      [c_psFuncLoc_SAPFunctionalLocat],
-      [c_psFuncLoc_SubArea],
-      [c_psFuncLoc_SubProcess],
-      [c_psFuncLoc_SubProcessDescript],
-      [c_psFuncLoc_SubProcessDes_0],
-      [c_psFuncLoc_SubProcessNumber],
-      [c_psFuncLoc_Unit],
-      [c_psFuncLoc_UnitDescription],
-      [c_psFuncLoc_UnitDescriptionVie],
-      [c_psFuncLoc_UnitNumber],
-      [c_psProject_ProjectNumber],
-      [c_psProject_ProjectSequenceNum],
-      [c_psRevisionHistory_REV_Approv],
-      [c_psRevisionHistory_REV_A_0],
-      [c_psRevisionHistory_REV_A_1],
-      [c_psRevisionHistory_REV_Create],
-      [c_psRevisionHistory_REV_C_0],
-      [c_psRevisionHistory_REV_C_1],
-      [c_psRevisionHistory_REV_Date_1],
-      [c_psRevisionHistory_REV_Date_2],
-      [c_psRevisionHistory_REV_Date_3],
-      [c_psRevisionHistory_REV_Descri],
-      [c_psRevisionHistory_REV_D_0],
-      [c_psRevisionHistory_REV_D_1],
-      [c_psRevisionHistory_REV1],
-      [c_psRevisionHistory_REV1Approv],
-      [c_psRevisionHistory_REV1Create],
-      [c_psRevisionHistory_REV1Date],
-      [c_psRevisionHistory_REV1Descri],
-      [c_psRevisionHistory_REV2],
-      [c_psRevisionHistory_REV2Approv],
-      [c_psRevisionHistory_REV2Create],
-      [c_psRevisionHistory_REV2Date],
-      [c_psRevisionHistory_REV2Descri],
-      [c_psRevisionHistory_REV3],
-      [c_psRevisionHistory_REV3Approv],
-      [c_psRevisionHistory_REV3Create],
-      [c_psRevisionHistory_REV3Date],
-      [c_psRevisionHistory_REV3Descri],
-      [c_Custom_AIM_ARCHIVE],
-      [c_Custom_Branch],
-      [c_Custom_Department],
-      [c_Custom_DepartmentDescription],
-      [c_Custom_DepartmentDescri_0]
-    FROM [AIM_KANEKA].[dbo].[DocumentPropertiesViewCoPilot] WHERE 1=1`;
+    let query = `SELECT TOP ${cappedLimit} *
+    FROM [${documentDb}].[dbo].[${documentView}] WHERE 1=1`;
 
     if (title) {
       query += ` AND [c_psDocument_DocumentTitle] LIKE @title`;
@@ -1268,7 +1194,7 @@ export async function searchDocumentsHandler(args: any) {
     }
 
     if (!include_retired) {
-      query += ` AND ([c_psDocument_documentAsBuiltSt] != 'retired' OR [c_psDocument_documentAsBuiltSt] IS NULL)`;
+      query += ` AND ([c_psApproval_WFStateApproval] != 'Retired' OR [c_psApproval_WFStateApproval] IS NULL)`;
     }
 
     if (is_plant_environment === true) {
@@ -1289,7 +1215,7 @@ export async function searchDocumentsHandler(args: any) {
       .query(query);
 
     // Execute count query to get total results
-    let countQuery = `SELECT COUNT(*) AS total_count FROM [AIM_KANEKA].[dbo].[DocumentPropertiesViewCoPilot] WHERE 1=1`;
+    let countQuery = `SELECT COUNT(*) AS total_count FROM [${documentDb}].[dbo].[${documentView}] WHERE 1=1`;
 
     if (title) {
       countQuery += ` AND [c_psDocument_DocumentTitle] LIKE @title`;
@@ -1320,7 +1246,7 @@ export async function searchDocumentsHandler(args: any) {
     }
 
     if (!include_retired) {
-      countQuery += ` AND ([c_psDocument_documentAsBuiltSt] != 'Retired' OR [c_psDocument_documentAsBuiltSt] IS NULL)`;
+      countQuery += ` AND ([c_psApproval_WFStateApproval] != 'Retired' OR [c_psApproval_WFStateApproval] IS NULL)`;
     }
 
     if (is_plant_environment === true) {
@@ -1400,7 +1326,7 @@ export async function getAssetDetailsHandler(args: any) {
       request = request.input('sap_equipment_number', sap_equipment_number);
     }
 
-    query = `SELECT * FROM [BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE]
+    query = `SELECT * FROM [${assetDb}].[dbo].[${assetView}]
              WHERE ${conditions.join(' OR ')}`;
 
     console.log(`Executing query: ${query}`);
@@ -1478,7 +1404,7 @@ export async function getProjectDetailsHandler(args: any) {
 
   try {
     const pool = getPool();
-    const query = `SELECT * FROM [BC_VLTS_DATA].[dbo].[ProjectPropertiesView]
+    const query = `SELECT * FROM [${assetDb}].[dbo].[${projectView}]
                    WHERE [ProjectNumber] LIKE @project_number`;
 
     console.log(`Executing query: ${query}`);
@@ -1544,9 +1470,9 @@ export async function getRelatedDocumentsForAssetHandler(args: any) {
         d.[c_Custom_Department],
         a.[TAG NUMBER] as AssetTag,
         a.[SAP EQUIPMENT NUMBER] as SAPEquipmentNumber
-      FROM [AIM_KANEKA].[dbo].[AssetDocRefViewCoPilot] r
-      JOIN [AIM_KANEKA].[dbo].[DocumentPropertiesViewCoPilot] d ON r.DocumentRevisionID = d.DocumentRevisionID
-      JOIN [BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE] a ON r.[ObjectTagRevisionID] = a.[ObjectTagRevisionID]
+      FROM [${documentDb}].[dbo].[${assetDocRefView}] r
+      JOIN [${documentDb}].[dbo].[${documentView}] d ON r.DocumentRevisionID = d.DocumentRevisionID
+      JOIN [${assetDb}].[dbo].[${assetView}] a ON r.[ObjectTagRevisionID] = a.[ObjectTagRevisionID]
       WHERE 1=1
     `;
 
@@ -1567,8 +1493,7 @@ export async function getRelatedDocumentsForAssetHandler(args: any) {
     }
 
     if (!include_retired) {
-      query += ` AND (d.[c_psDocument_DocumentAsBuiltSt] != 'Retired' AND d.[c_psDocument_DocumentAsBuiltSt] IS NOT NULL)`;
-
+      query += ` AND (d.[c_psApproval_WFStateApproval] != 'Retired' OR d.[c_psApproval_WFStateApproval] IS NULL)`;
     }
 
     query += ` ORDER BY d.[FileName]`;
@@ -1584,9 +1509,9 @@ export async function getRelatedDocumentsForAssetHandler(args: any) {
     // Execute count query to get total results
     let countQuery = `
       SELECT COUNT(*) AS total_count
-      FROM [AIM_KANEKA].[dbo].[AssetDocRefViewCoPilot] r
-      JOIN [AIM_KANEKA].[dbo].[DocumentPropertiesViewCoPilot] d ON r.DocumentRevisionID = d.DocumentRevisionID
-      JOIN [BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE] a ON r.[ObjectTagRevisionID] = a.[ObjectTagRevisionID]
+      FROM [${documentDb}].[dbo].[${assetDocRefView}] r
+      JOIN [${documentDb}].[dbo].[${documentView}] d ON r.DocumentRevisionID = d.DocumentRevisionID
+      JOIN [${assetDb}].[dbo].[${assetView}] a ON r.[ObjectTagRevisionID] = a.[ObjectTagRevisionID]
       WHERE 1=1
     `;
 
@@ -1607,7 +1532,7 @@ export async function getRelatedDocumentsForAssetHandler(args: any) {
     }
 
     if (!include_retired) {
-      countQuery += ` AND (d.[c_psDocument_documentAsBuiltSt] != 'Retired' AND d.[c_psDocument_documentAsBuiltSt] IS NOT NULL)`;
+      countQuery += ` AND (d.[c_psApproval_WFStateApproval] != 'Retired' OR d.[c_psApproval_WFStateApproval] IS NULL)`;
     }
 
     console.log(`Executing count query: ${countQuery}`);
@@ -1677,9 +1602,9 @@ export async function getAssetsForDocumentHandler(args: any) {
         d.[c_psDocument_DocumentCategory],
         d.[c_psDocument_DocumentSubC_0],
         d.[c_Custom_Department]
-      FROM [AIM_KANEKA].[dbo].[AssetDocRefViewCoPilot] r
-      JOIN [AIM_KANEKA].[dbo].[DocumentPropertiesViewCoPilot] d ON r.DocumentRevisionID = d.DocumentRevisionID
-      JOIN [BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE] a ON r.[ObjectTagRevisionID] = a.[ObjectTagRevisionID]
+      FROM [${documentDb}].[dbo].[${assetDocRefView}] r
+      JOIN [${documentDb}].[dbo].[${documentView}] d ON r.DocumentRevisionID = d.DocumentRevisionID
+      JOIN [${assetDb}].[dbo].[${assetView}] a ON r.[ObjectTagRevisionID] = a.[ObjectTagRevisionID]
       WHERE 1=1
     `;
 
@@ -1696,7 +1621,7 @@ export async function getAssetsForDocumentHandler(args: any) {
     }
 
     if (!include_retired) {
-      query += ` AND (d.[c_psDocument_DocumentAsBuiltSt] != 'Retired' AND d.[c_psDocument_DocumentAsBuiltSt] IS NOT NULL)`;
+      query += ` AND (d.[c_psApproval_WFStateApproval] != 'Retired' OR d.[c_psApproval_WFStateApproval] IS NULL)`;
     }
 
     query += ` ORDER BY a.[c_psAsset_Asset_Number_Check]`;
@@ -1711,9 +1636,9 @@ export async function getAssetsForDocumentHandler(args: any) {
     // Execute count query to get total results
     let countQuery = `
       SELECT COUNT(*) AS total_count
-      FROM [AIM_KANEKA].[dbo].[AssetDocRefViewCoPilot] r
-      JOIN [AIM_KANEKA].[dbo].[DocumentPropertiesViewCoPilot] d ON r.DocumentRevisionID = d.DocumentRevisionID
-      JOIN [BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE] a ON r.[ObjectTagRevisionID] = a.[ObjectTagRevisionID]
+      FROM [${documentDb}].[dbo].[${assetDocRefView}] r
+      JOIN [${documentDb}].[dbo].[${documentView}] d ON r.DocumentRevisionID = d.DocumentRevisionID
+      JOIN [${assetDb}].[dbo].[${assetView}] a ON r.[ObjectTagRevisionID] = a.[ObjectTagRevisionID]
       WHERE 1=1
     `;
 
@@ -1730,7 +1655,7 @@ export async function getAssetsForDocumentHandler(args: any) {
     }
 
     if (!include_retired) {
-      countQuery += ` AND (d.[c_psDocument_DocumentAsBuiltSt] != 'Retired' OR d.[c_psDocument_DocumentAsBuiltSt] IS NULL)`;
+      countQuery += ` AND (d.[c_psApproval_WFStateApproval] != 'Retired' OR d.[c_psApproval_WFStateApproval] IS NULL)`;
     }
 
     console.log(`Executing count query: ${countQuery}`);
