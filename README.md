@@ -257,7 +257,7 @@ KB_DB_NAME=AIM_KANEKA
 KB_API_KEY=your-kb-api-key
 KB_SENTRY_DSN=
 KB_TRUST_CERT=false
-KB_ASSET_DB=AIM_KANEKA
+KB_ASSET_DB=BC_VLTS_DATA
 KB_DOCUMENT_DB=AIM_KANEKA
 KB_ASSET_VIEW=BCAssetPropertiesViewByNameBCE
 KB_PROJECT_VIEW=ProjectPropertiesView
@@ -281,7 +281,7 @@ KNA_DOCUMENT_VIEW=KNA_DocumentPropertiesViewCoPilot
 KNA_ASSET_DOC_REF_VIEW=KNA_AssetDocRefViewCoPilot
 ```
 
-The example above assumes the KB views live in `AIM_KANEKA` and the KNA views live in `AIM_KNA`. If the asset or project views still live in a separate shared database, only change `*_ASSET_DB` and leave the view names as-is.
+The KB defaults above are verified: KB asset and project views live in `BC_VLTS_DATA`, while KB document views live in `AIM_KANEKA`. KNA is still assumed to use `AIM_KNA` for both document views and the `KNA_`-prefixed views; if KNA asset views actually live in a separate VLTS database, only change `KNA_ASSET_DB`.
 
 ### Deploying Only One Instance
 
