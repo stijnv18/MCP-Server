@@ -35,6 +35,7 @@ export const dbConfig: DbConfig = {
 export const apiKey = process.env.API_KEY || 'your-static-api-key-here';
 
 export const sentryDsn = process.env.SENTRY_DSN || 'your-sentry-dsn-here';
+export const serviceName = process.env.SERVICE_NAME || process.env.HOSTNAME || 'mcp-server';
 
 // Site-specific database and view configuration
 // Set these env vars to point to the correct databases for each site (KB, KNA, KM, ...)

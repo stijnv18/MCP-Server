@@ -1,14 +1,51 @@
+x-mcp-server: &mcp-server
+  build:
+    context: .
+  restart: unless-stopped
+
 services:
-  mcp-server-dev-requests:
-    build: .
+  mcp-server-kb:
+    <<: *mcp-server
+    container_name: mcp-server-kb
     ports:
-      - "3001:3001"
+      - "${KB_HOST_PORT:-3001}:3000"
     environment:
-      - DB_USER=copilot
-      - DB_PASSWORD=--password--
-      - DB_SERVER=10.232.11.14\ua
-      - DB_NAME=MI_DataWarehouse
-      - API_KEY=test-api-key
-      - SENTRY_DSN=
-      - NODE_ENV=development
-      - PORT=3001
+      SERVICE_NAME: mcp-server-kb
+      DB_USER: ${KB_DB_USER:-copilot}
+      DB_PASSWORD: ${KB_DB_PASSWORD:---password--}
+      DB_SERVER: ${KB_DB_SERVER:-10.232.11.14\ua}
+      DB_NAME: ${KB_DB_NAME:-MI_DataWarehouse}
+      API_KEY: ${KB_API_KEY:-test-api-key}
+      SENTRY_DSN: ${KB_SENTRY_DSN:-}
+      NODE_ENV: ${KB_NODE_ENV:-production}
+      PORT: 3000
+      TRUST_CERT: ${KB_TRUST_CERT:-false}
+      ASSET_DB: ${KB_ASSET_DB:-BC_VLTS_DATA}
+      DOCUMENT_DB: ${KB_DOCUMENT_DB:-AIM_KANEKA}
+      ASSET_VIEW: ${KB_ASSET_VIEW:-BCAssetPropertiesViewByNameBCE}
+      PROJECT_VIEW: ${KB_PROJECT_VIEW:-ProjectPropertiesView}
+      DOCUMENT_VIEW: ${KB_DOCUMENT_VIEW:-DocumentPropertiesViewCoPilot}
+      ASSET_DOC_REF_VIEW: ${KB_ASSET_DOC_REF_VIEW:-AssetDocRefViewCoPilot}
+
+  mcp-server-kna:
+    <<: *mcp-server
+    container_name: mcp-server-kna
+    ports:
+      - "${KNA_HOST_PORT:-3002}:3000"
+    environment:
+      SERVICE_NAME: mcp-server-kna
+      DB_USER: ${KNA_DB_USER:-copilot}
+      DB_PASSWORD: ${KNA_DB_PASSWORD:---password--}
+      DB_SERVER: ${KNA_DB_SERVER:-10.232.11.14\ua}
+      DB_NAME: ${KNA_DB_NAME:-MI_DataWarehouse}
+      API_KEY: ${KNA_API_KEY:-test-api-key-kna}
+      SENTRY_DSN: ${KNA_SENTRY_DSN:-}
+      NODE_ENV: ${KNA_NODE_ENV:-production}
+      PORT: 3000
+      TRUST_CERT: ${KNA_TRUST_CERT:-false}
+      ASSET_DB: ${KNA_ASSET_DB:-BC_VLTS_DATA}
+      DOCUMENT_DB: ${KNA_DOCUMENT_DB:-AIM_KANEKA}
+      ASSET_VIEW: ${KNA_ASSET_VIEW:-BCAssetPropertiesViewByNameBCE}
+      PROJECT_VIEW: ${KNA_PROJECT_VIEW:-ProjectPropertiesView}
+      DOCUMENT_VIEW: ${KNA_DOCUMENT_VIEW:-DocumentPropertiesViewCoPilot}
+      ASSET_DOC_REF_VIEW: ${KNA_ASSET_DOC_REF_VIEW:-AssetDocRefViewCoPilot}

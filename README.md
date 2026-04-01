@@ -1,7 +1,7 @@
 # Commands to update container
 git pull
-docker compose -p more-tools build
-docker compose -p more-tools up -d
+docker compose -p mcp-server build
+docker compose -p mcp-server up -d
 
 
 # MCP Server for On-Prem Database Access
@@ -232,31 +232,54 @@ The project includes Docker support for easy deployment.
 ### Quick Start
 
 1. Clone the repository
-2. Configure environment variables in `.env` file
-3. Start the services:
+2. Copy `deploy.env.example` to `.env`
+3. Fill in the `KB_*` and `KNA_*` values
+4. Start the services:
    ```bash
-   docker-compose up --build
+  docker compose up --build -d
    ```
 
-This will start the MCP server in a container.
+This will start two MCP server containers on the same host:
+- `mcp-server-kb` on `${KB_HOST_PORT:-3001}`
+- `mcp-server-kna` on `${KNA_HOST_PORT:-3002}`
+
+Both containers listen on internal port `3000` and publish different host ports so they can run side by side.
 
 ### Environment Variables for Docker
 
 ```bash
-# Database
-DB_USER=your-db-user
-DB_PASSWORD=your-db-password
-DB_SERVER=your-db-server
-DB_NAME=your-db-name
-TRUST_CERT=false
+# KB deployment
+KB_HOST_PORT=3001
+KB_DB_USER=your-db-user
+KB_DB_PASSWORD=your-db-password
+KB_DB_SERVER=your-db-server
+KB_DB_NAME=your-db-name
+KB_API_KEY=your-kb-api-key
+KB_SENTRY_DSN=
+KB_TRUST_CERT=false
 
-# API
-API_KEY=your-api-key
-PORT=3000
-
-# Monitoring
-SENTRY_DSN=your-sentry-dsn
+# KNA deployment
+KNA_HOST_PORT=3002
+KNA_DB_USER=your-db-user
+KNA_DB_PASSWORD=your-db-password
+KNA_DB_SERVER=your-db-server
+KNA_DB_NAME=your-db-name
+KNA_API_KEY=your-kna-api-key
+KNA_SENTRY_DSN=
+KNA_TRUST_CERT=false
 ```
+
+### Deploying Only One Instance
+
+```bash
+docker compose up -d mcp-server-kb
+docker compose up -d mcp-server-kna
+```
+
+### Endpoints
+
+- KB: `http://<server>:${KB_HOST_PORT:-3001}/mcp`
+- KNA: `http://<server>:${KNA_HOST_PORT:-3002}/mcp`
 
 ## MCP Client Integration
 
@@ -282,7 +305,7 @@ Add to your `claude_desktop_config.json`:
 You can test the server using curl:
 
 ```bash
-curl -X POST http://localhost:3000/mcp \
+curl -X POST http://localhost:3001/mcp \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer your-api-key" \
   -d '{"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}'

@@ -1,7 +1,65 @@
 import { getPool } from './db.js';
 import * as Sentry from '@sentry/node';
 import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
-import { assetDb, documentDb, assetView, projectView, documentView, assetDocRefView } from './config.js';
+import { assetDb, documentDb, assetView, projectView, documentView, assetDocRefView, serviceName } from './config.js';
+
+function logToolEvent(message: string, details?: Record<string, unknown>) {
+  if (details) {
+    console.error(`[${serviceName}] ${message}`, details);
+    return;
+  }
+
+  console.error(`[${serviceName}] ${message}`);
+}
+
+function extractQueryTargets(query: string): string[] {
+  const matches = query.match(/\b(?:FROM|JOIN|UPDATE|INTO|EXEC|MERGE)\s+([^\s,;()]+)/gi) || [];
+  const targets = matches.map((match) => match.replace(/^\b(?:FROM|JOIN|UPDATE|INTO|EXEC|MERGE)\s+/i, '').trim());
+  return Array.from(new Set(targets));
+}
+
+function getToolTargets(name: string, args: any): Record<string, unknown> {
+  switch (name) {
+    case 'get_list_views':
+      return { database: args?.database || 'current', systemView: 'sys.views' };
+    case 'get_databases':
+      return { database: 'master', systemView: 'sys.databases' };
+    case 'get_tables':
+      return { database: args?.database || 'current', systemView: 'sys.tables' };
+    case 'get_columns':
+      return { database: args?.database || 'current', table: args?.table };
+    case 'execute_stored_procedure':
+      return { database: args?.database || 'current', procedure: args?.procedure };
+    case 'run_sql':
+      return { targets: extractQueryTargets(args?.query || '') };
+    case 'get_table_joins':
+      return { database: args?.database || 'current', table: args?.table || 'all tables' };
+    case 'get_distinct_values':
+      return { database: args?.database || 'current', table: args?.table, column: args?.column };
+    case 'search_assets':
+      return { database: assetDb, table: `[${assetDb}].[dbo].[${assetView}]` };
+    case 'search_projects':
+      return { database: assetDb, table: `[${assetDb}].[dbo].[${projectView}]` };
+    case 'search_documents':
+      return { database: documentDb, table: `[${documentDb}].[dbo].[${documentView}]` };
+    case 'get_asset_details':
+      return { database: assetDb, table: `[${assetDb}].[dbo].[${assetView}]` };
+    case 'get_project_details':
+      return { database: assetDb, table: `[${assetDb}].[dbo].[${projectView}]` };
+    case 'get_assets_for_document':
+      return { database: documentDb, table: `[${documentDb}].[dbo].[${assetDocRefView}]` };
+    case 'get_related_documents_for_asset':
+      return { database: documentDb, table: `[${documentDb}].[dbo].[${assetDocRefView}]` };
+    case 'get_database_schema':
+      return {
+        database: args?.database,
+        includeTables: args?.include_tables !== false,
+        includeViews: args?.include_views !== false,
+      };
+    default:
+      return {};
+  }
+}
 
 
 export const tools = [
@@ -1776,8 +1834,29 @@ export async function handleToolCall(name: string, args: any) {
   }
 
   try {
-    return await handler(args);
+    const startedAt = Date.now();
+    const targets = getToolTargets(name, args);
+
+    logToolEvent('Tool call started', {
+      tool: name,
+      ...targets,
+    });
+
+    const result = await handler(args);
+
+    logToolEvent('Tool call completed', {
+      tool: name,
+      durationMs: Date.now() - startedAt,
+      ...targets,
+    });
+
+    return result;
   } catch (error) {
+    logToolEvent('Tool call failed', {
+      tool: name,
+      error: error instanceof Error ? error.message : String(error),
+      ...getToolTargets(name, args),
+    });
     Sentry.captureException(error);
     throw new McpError(
       ErrorCode.InternalError,

@@ -19,11 +19,20 @@ import * as Sentry from '@sentry/node';
 import { nodeProfilingIntegration } from '@sentry/profiling-node';
 import { checkAuth } from './auth.js';
 import { initDbPool, closeDbPool } from './db.js';
-import { dbConfig } from './config.js';
+import { assetDb, assetDocRefView, assetView, dbConfig, documentDb, documentView, projectView, serviceName } from './config.js';
 import { tools, handleToolCall } from './tools.js';
 
 export class SimpleMcpServer {
   private server: any;
+
+  private log(message: string, details?: Record<string, unknown>) {
+    if (details) {
+      console.error(`[${serviceName}] ${message}`, details);
+      return;
+    }
+
+    console.error(`[${serviceName}] ${message}`);
+  }
 
   constructor() {
     // Initialize Sentry only if DSN is provided and valid
@@ -64,7 +73,7 @@ export class SimpleMcpServer {
 
   async run() {
     process.on('SIGINT', async () => {
-      console.error('Closing DB pool...');
+      this.log('Closing DB pool...');
       await closeDbPool();
       process.exit(0);
     });
@@ -73,6 +82,12 @@ export class SimpleMcpServer {
     const transports: { [sessionId: string]: any } = {};
 
     const server = http.createServer(async (req: IncomingMessage, res: ServerResponse) => {
+      this.log('Incoming HTTP request', {
+        method: req.method || 'unknown',
+        url: req.url || 'unknown',
+        sessionId: (req.headers['mcp-session-id'] as string | undefined) || 'none',
+      });
+
       Sentry.withScope((scope: any) => {
         scope.setTag('url', req.url || '');
         scope.setTag('method', req.method || '');
@@ -98,11 +113,11 @@ export class SimpleMcpServer {
 
               if (sessionId && transports[sessionId]) {
                 // Reuse existing transport
-                console.error(`Reusing existing transport for session: ${sessionId}`);
+                this.log('Reusing existing transport', { sessionId });
                 transport = transports[sessionId];
               } else if (!sessionId && isInitializeRequest(requestBody)) {
                 // New initialization request - create new server and transport
-                console.error('Creating new transport for session initialization');
+                this.log('Creating new transport for session initialization');
                 const newServer = new Server(
                   {
                     name: "mcp-server",
@@ -121,7 +136,7 @@ export class SimpleMcpServer {
                 transport = new StreamableHTTPServerTransport({
                   sessionIdGenerator: () => require('crypto').randomUUID(),
                   onsessioninitialized: (newSessionId: string) => {
-                    console.error(`Session initialized: ${newSessionId}`);
+                    this.log('Session initialized', { sessionId: newSessionId });
                     transports[newSessionId] = transport;
                   },
                   enableDnsRebindingProtection: false, // Disable for local development
@@ -129,7 +144,7 @@ export class SimpleMcpServer {
 
                                 // Clean up transport when closed
                 transport.onclose = () => {
-                  console.error(`Cleaning up transport for session: ${transport.sessionId}`);
+                  this.log('Cleaning up transport', { sessionId: transport.sessionId || 'unknown' });
                   if (transport.sessionId) {
                     delete transports[transport.sessionId];
                   }
@@ -137,7 +152,7 @@ export class SimpleMcpServer {
 
                 // Add error handling for transport
                 transport.onerror = (error: any) => {
-                  console.error(`Transport error for session ${transport.sessionId}:`, error);
+                  console.error(`[${serviceName}] Transport error for session ${transport.sessionId}:`, error);
                 };
 
                 // Connect the new server to the transport
@@ -161,7 +176,7 @@ export class SimpleMcpServer {
               // Handle the request
               await transport.handleRequest(req, res, requestBody);
             } catch (error) {
-              console.error('Request processing error:', error);
+              console.error(`[${serviceName}] Request processing error:`, error);
               if (!res.headersSent) {
                 res.writeHead(500, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({
@@ -176,7 +191,7 @@ export class SimpleMcpServer {
             }
           });
         } catch (error) {
-          console.error('Request setup error:', error);
+          console.error(`[${serviceName}] Request setup error:`, error);
           if (!res.headersSent) {
             res.writeHead(500);
             res.end('Internal Server Error');
@@ -184,7 +199,9 @@ export class SimpleMcpServer {
         }
       } else if (req.method === 'GET' && req.url === '/mcp') {
         // Handle GET requests for server-to-client notifications via SSE
-        console.error(`Handling GET request for SSE, session: ${req.headers['mcp-session-id']}`);
+        this.log('Handling GET request for SSE', {
+          sessionId: (req.headers['mcp-session-id'] as string | undefined) || 'none',
+        });
         const sessionId = req.headers['mcp-session-id'] as string | undefined;
         if (!sessionId || !transports[sessionId]) {
           if (!res.headersSent) {
@@ -198,7 +215,9 @@ export class SimpleMcpServer {
         await transport.handleRequest(req, res);
       } else if (req.method === 'DELETE' && req.url === '/mcp') {
         // Handle DELETE requests for session termination
-        console.error(`Handling DELETE request for session termination: ${req.headers['mcp-session-id']}`);
+        this.log('Handling DELETE request for session termination', {
+          sessionId: (req.headers['mcp-session-id'] as string | undefined) || 'none',
+        });
         const sessionId = req.headers['mcp-session-id'] as string | undefined;
         if (!sessionId || !transports[sessionId]) {
           if (!res.headersSent) {
@@ -223,13 +242,27 @@ export class SimpleMcpServer {
       const address = server.address();
       const host = typeof address === 'string' ? address : address?.address || 'localhost';
       const maskedPassword = dbConfig.password ? '*'.repeat(dbConfig.password.length) : 'not set';
-      
-      console.error(`MCP Server running on HTTP port ${port} with /mcp endpoint`);
-      console.error(`Server IP: ${host}:${port}`);
-      console.error(`Database: ${dbConfig.database}`);
-      console.error(`Database Server: ${dbConfig.server}`);
-      console.error(`Database User: ${dbConfig.user}`);
-      console.error(`Database Password: ${maskedPassword}`);
+
+      this.log('MCP server started', {
+        host,
+        port,
+        endpoint: '/mcp',
+        nodeEnv: process.env.NODE_ENV || 'development',
+      });
+      this.log('Primary DB connection config', {
+        database: dbConfig.database,
+        server: dbConfig.server,
+        user: dbConfig.user,
+        password: maskedPassword,
+      });
+      this.log('Configured site data sources', {
+        assetDb,
+        assetView,
+        projectView,
+        documentDb,
+        documentView,
+        assetDocRefView,
+      });
     });
   }
 
@@ -251,7 +284,7 @@ export class SimpleMcpServer {
     // Handle initialized notification
     server.setNotificationHandler(InitializedNotificationSchema, async () => {
       // Client is initialized, we can start accepting tool calls
-      console.error('MCP client initialized successfully');
+      this.log('MCP client initialized successfully');
     });
 
     // List available tools
