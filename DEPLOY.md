@@ -6,6 +6,21 @@
 - Copy `deploy.env.example` to `.env`
 - Fill in the real passwords and API keys in `.env`
 
+## Validate The Compose Config
+
+Before starting the services, render the final Compose config and confirm the KB and KNA environment values look correct:
+
+```bash
+docker compose --env-file .env -p mcp-server config
+```
+
+Verify these values in the output:
+
+- KB uses `ASSET_DB=BC_VLTS_DATA` and `ASSET_VIEW=BCAssetPropertiesViewByNameBCE`
+- KNA uses `ASSET_DB=KNA_VLTS_DATA` and `ASSET_VIEW=KNA_AssetPropertiesViewByNameBCE`
+- KB uses `DOCUMENT_DB=AIM_KANEKA`
+- KNA uses `DOCUMENT_DB=AIM_KNA`
+
 ## Start Both Services
 
 Run this from the repository root:

@@ -275,13 +275,13 @@ KNA_SENTRY_DSN=
 KNA_TRUST_CERT=false
 KNA_ASSET_DB=KNA_VLTS_DATA
 KNA_DOCUMENT_DB=AIM_KNA
-KNA_ASSET_VIEW=KNA_BCAssetPropertiesViewByNameBCE
+KNA_ASSET_VIEW=KNA_AssetPropertiesViewByNameBCE
 KNA_PROJECT_VIEW=KNA_ProjectPropertiesView
 KNA_DOCUMENT_VIEW=KNA_DocumentPropertiesViewCoPilot
 KNA_ASSET_DOC_REF_VIEW=KNA_AssetDocRefViewCoPilot
 ```
 
-The KB defaults above are verified: KB asset and project views live in `BC_VLTS_DATA`, while KB document views live in `AIM_KANEKA`. For KNA, `AIM_KNA` is confirmed for `KNA_DocumentPropertiesViewCoPilot` and `KNA_AssetDocRefViewCoPilot`. The asset and project views are not present in `AIM_KNA`, so the sample defaults them to `KNA_VLTS_DATA` with `KNA_BCAssetPropertiesViewByNameBCE` and `KNA_ProjectPropertiesView`.
+The KB defaults above are verified: KB asset and project views live in `BC_VLTS_DATA`, while KB document views live in `AIM_KANEKA`. In the live KNA schema, `KNA_VLTS_DATA` exposes `KNA_AssetPropertiesViewByNameBCE` and `KNA_ProjectPropertiesView`, while `AIM_KNA` exposes `KNA_DocumentPropertiesViewCoPilot` and `KNA_AssetDocRefViewCoPilot`. The server also falls back from the older invalid asset view name `KNA_BCAssetPropertiesViewByNameBCE` to `KNA_AssetPropertiesViewByNameBCE` when needed.
 
 ### Deploying Only One Instance
 
