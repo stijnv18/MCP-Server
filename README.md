@@ -250,24 +250,38 @@ Both containers listen on internal port `3000` and publish different host ports 
 ```bash
 # KB deployment
 KB_HOST_PORT=3001
-KB_DB_USER=your-db-user
+KB_DB_USER=CoPilot_KB
 KB_DB_PASSWORD=your-db-password
-KB_DB_SERVER=your-db-server
-KB_DB_NAME=your-db-name
+KB_DB_SERVER=kgaprd-sql.gkaneka.local
+KB_DB_NAME=AIM_KANEKA
 KB_API_KEY=your-kb-api-key
 KB_SENTRY_DSN=
 KB_TRUST_CERT=false
+KB_ASSET_DB=AIM_KANEKA
+KB_DOCUMENT_DB=AIM_KANEKA
+KB_ASSET_VIEW=BCAssetPropertiesViewByNameBCE
+KB_PROJECT_VIEW=ProjectPropertiesView
+KB_DOCUMENT_VIEW=DocumentPropertiesViewCoPilot
+KB_ASSET_DOC_REF_VIEW=AssetDocRefViewCoPilot
 
 # KNA deployment
 KNA_HOST_PORT=3002
-KNA_DB_USER=your-db-user
+KNA_DB_USER=CoPilot_KNA
 KNA_DB_PASSWORD=your-db-password
-KNA_DB_SERVER=your-db-server
-KNA_DB_NAME=your-db-name
+KNA_DB_SERVER=kgaprd-sql.gkaneka.local
+KNA_DB_NAME=AIM_KNA
 KNA_API_KEY=your-kna-api-key
 KNA_SENTRY_DSN=
 KNA_TRUST_CERT=false
+KNA_ASSET_DB=AIM_KNA
+KNA_DOCUMENT_DB=AIM_KNA
+KNA_ASSET_VIEW=KNA_BCAssetPropertiesViewByNameBCE
+KNA_PROJECT_VIEW=KNA_ProjectPropertiesView
+KNA_DOCUMENT_VIEW=KNA_DocumentPropertiesViewCoPilot
+KNA_ASSET_DOC_REF_VIEW=KNA_AssetDocRefViewCoPilot
 ```
+
+The example above assumes the KB views live in `AIM_KANEKA` and the KNA views live in `AIM_KNA`. If the asset or project views still live in a separate shared database, only change `*_ASSET_DB` and leave the view names as-is.
 
 ### Deploying Only One Instance
 
