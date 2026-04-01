@@ -913,8 +913,8 @@ export async function searchAssetsHandler(args: any) {
     asset_subclass,
     functional_location,
     unit,
-    process,
-    subprocess,
+    process: processFilter,
+    subprocess: subprocessFilter,
     in_workflow,
     include_retired = false,
     limit = 25
@@ -964,11 +964,11 @@ export async function searchAssetsHandler(args: any) {
       query += ` AND [UNIT] LIKE @unit`;
     }
 
-    if (process) {
+    if (processFilter) {
       query += ` AND [PROCESS] LIKE @process`;
     }
 
-    if (subprocess) {
+    if (subprocessFilter) {
       query += ` AND [SUB PROCESS] LIKE @subprocess`;
     }
 
@@ -993,8 +993,8 @@ export async function searchAssetsHandler(args: any) {
       .input('asset_subclass', asset_subclass || '')
       .input('functional_location', functional_location ? `%${functional_location}%` : '')
       .input('unit', unit ? `%${unit}%` : '')
-      .input('process', process ? `%${process}%` : '')
-      .input('subprocess', subprocess ? `%${subprocess}%` : '')
+      .input('process', processFilter ? `%${processFilter}%` : '')
+      .input('subprocess', subprocessFilter ? `%${subprocessFilter}%` : '')
       .query(query);
 
     // Execute count query to get total results
@@ -1037,11 +1037,11 @@ export async function searchAssetsHandler(args: any) {
       countQuery += ` AND [UNIT] LIKE @unit`;
     }
 
-    if (process) {
+    if (processFilter) {
       countQuery += ` AND [PROCESS] LIKE @process`;
     }
 
-    if (subprocess) {
+    if (subprocessFilter) {
       countQuery += ` AND [SUB PROCESS] LIKE @subprocess`;
     }
 
@@ -1066,8 +1066,8 @@ export async function searchAssetsHandler(args: any) {
       .input('asset_subclass', asset_subclass || '')
       .input('functional_location', functional_location ? `%${functional_location}%` : '')
       .input('unit', unit ? `%${unit}%` : '')
-      .input('process', process ? `%${process}%` : '')
-      .input('subprocess', subprocess ? `%${subprocess}%` : '')
+      .input('process', processFilter ? `%${processFilter}%` : '')
+      .input('subprocess', subprocessFilter ? `%${subprocessFilter}%` : '')
       .query(countQuery);
 
     const totalCount = countResult.recordset[0].total_count;
