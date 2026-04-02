@@ -12,6 +12,42 @@ function logToolEvent(message: string, details?: Record<string, unknown>) {
   console.error(`[${serviceName}] ${message}`);
 }
 
+function pruneNullValues(value: any): any {
+  if (value === null || value === undefined) {
+    return undefined;
+  }
+
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => pruneNullValues(item))
+      .filter((item) => item !== undefined);
+  }
+
+  if (value instanceof Date) {
+    return value;
+  }
+
+  if (typeof value === 'object') {
+    const filtered: Record<string, unknown> = {};
+
+    for (const [key, nestedValue] of Object.entries(value)) {
+      const prunedValue = pruneNullValues(nestedValue);
+      if (prunedValue !== undefined) {
+        filtered[key] = prunedValue;
+      }
+    }
+
+    return filtered;
+  }
+
+  return value;
+}
+
+function stringifyWithoutNulls(value: unknown): string {
+  const prunedValue = pruneNullValues(value);
+  return JSON.stringify(prunedValue ?? {}, null, 2);
+}
+
 function extractQueryTargets(query: string): string[] {
   const matches = query.match(/\b(?:FROM|JOIN|UPDATE|INTO|EXEC|MERGE)\s+([^\s,;()]+)/gi) || [];
   const targets = matches.map((match) => match.replace(/^\b(?:FROM|JOIN|UPDATE|INTO|EXEC|MERGE)\s+/i, '').trim());
@@ -507,7 +543,7 @@ export async function getListViewsHandler(args: any) {
       content: [
         {
           type: "text",
-          text: JSON.stringify({ database: database || 'current', schemas: viewsBySchema }, null, 2)
+          text: stringifyWithoutNulls({ database: database || 'current', schemas: viewsBySchema })
         }
       ]
     };
@@ -582,7 +618,7 @@ export async function getTablesHandler(args: any) {
       content: [
         {
           type: "text",
-          text: JSON.stringify({ database: database || 'current', schemas: tablesBySchema }, null, 2)
+          text: stringifyWithoutNulls({ database: database || 'current', schemas: tablesBySchema })
         }
       ]
     };
@@ -631,7 +667,7 @@ export async function getColumnsHandler(args: any) {
       content: [
         {
           type: "text",
-          text: `Columns in table ${table}: ${JSON.stringify(columns, null, 2)}`
+          text: `Columns in table ${table}: ${stringifyWithoutNulls(columns)}`
         }
       ]
     };
@@ -669,7 +705,7 @@ export async function executeStoredProcedureHandler(args: any) {
     const result = await pool.request().query(query);
     let response = `Stored procedure ${procedure} executed successfully.`;
     if (result.recordset && result.recordset.length > 0) {
-      response += ` Results: ${JSON.stringify(result.recordset, null, 2)}`;
+      response += ` Results: ${stringifyWithoutNulls(result.recordset)}`;
     }
     if (result.rowsAffected && result.rowsAffected.length > 0) {
       response += ` Rows affected: ${result.rowsAffected[0]}`;
@@ -713,7 +749,7 @@ export async function runSqlHandler(args: any) {
         content: [
           {
             type: "text",
-            text: `Query executed successfully. Rows returned: ${result.recordset.length}\n${JSON.stringify(result.recordset, null, 2)}`
+            text: `Query executed successfully. Rows returned: ${result.recordset.length}\n${stringifyWithoutNulls(result.recordset)}`
           }
         ]
       };
@@ -785,11 +821,11 @@ export async function getTableJoinsHandler(args: any) {
         content: [
           {
             type: "text",
-            text: JSON.stringify({
+            text: stringifyWithoutNulls({
               database: database || 'current',
               table_joins: [],
               message: "No 'Joins' extended property found at database level"
-            }, null, 2)
+            })
           }
         ]
       };
@@ -830,10 +866,10 @@ export async function getTableJoinsHandler(args: any) {
       content: [
         {
           type: "text",
-          text: JSON.stringify({
+          text: stringifyWithoutNulls({
             database: dbName,
             table_joins: tableJoins
-          }, null, 2)
+          })
         }
       ]
     };
@@ -875,12 +911,12 @@ export async function getDistinctValuesHandler(args: any) {
       content: [
         {
           type: "text",
-          text: JSON.stringify({
+          text: stringifyWithoutNulls({
             table: table,
             column: column,
             distinct_values: distinctValues,
             total_count: totalCount
-          }, null, 2)
+          })
         }
       ]
     };
@@ -1072,27 +1108,11 @@ export async function searchAssetsHandler(args: any) {
 
     const totalCount = countResult.recordset[0].total_count;
 
-    // Helper function to filter out null/undefined values
-    const filterNonNullValues = (obj: any): any => {
-      if (obj === null || obj === undefined) return obj;
-      if (typeof obj !== 'object') return obj;
-      if (Array.isArray(obj)) {
-        return obj.map(filterNonNullValues).filter(item => item !== null && item !== undefined);
-      }
-      const filtered: any = {};
-      for (const [key, value] of Object.entries(obj)) {
-        if (value !== null && value !== undefined) {
-          filtered[key] = filterNonNullValues(value);
-        }
-      }
-      return filtered;
-    };
-
     return {
       content: [
         {
           type: "text",
-          text: `Found ${result.recordset.length} assets (total: ${totalCount}):\n${JSON.stringify(result.recordset.map(filterNonNullValues), null, 2)}`
+          text: `Found ${result.recordset.length} assets (total: ${totalCount}):\n${stringifyWithoutNulls(result.recordset)}`
         }
       ]
     };
@@ -1181,7 +1201,7 @@ export async function searchProjectsHandler(args: any) {
       content: [
         {
           type: "text",
-          text: `Found ${result.recordset.length} projects (total: ${totalCount}):\n${JSON.stringify(result.recordset, null, 2)}`
+          text: `Found ${result.recordset.length} projects (total: ${totalCount}):\n${stringifyWithoutNulls(result.recordset)}`
         }
       ]
     };
@@ -1330,7 +1350,7 @@ export async function searchDocumentsHandler(args: any) {
       content: [
         {
           type: "text",
-          text: `Found ${result.recordset.length} documents (total: ${totalCount}):\n${JSON.stringify(result.recordset, null, 2)}`
+          text: `Found ${result.recordset.length} documents (total: ${totalCount}):\n${stringifyWithoutNulls(result.recordset)}`
         }
       ]
     };
@@ -1405,29 +1425,13 @@ export async function getAssetDetailsHandler(args: any) {
       };
     }
 
-    // Helper function to filter out null/undefined values
-    const filterNonNullValues = (obj: any): any => {
-      if (obj === null || obj === undefined) return obj;
-      if (typeof obj !== 'object') return obj;
-      if (Array.isArray(obj)) {
-        return obj.map(filterNonNullValues).filter(item => item !== null && item !== undefined);
-      }
-      const filtered: any = {};
-      for (const [key, value] of Object.entries(obj)) {
-        if (value !== null && value !== undefined) {
-          filtered[key] = filterNonNullValues(value);
-        }
-      }
-      return filtered;
-    };
-
     // If multiple results, return all of them
     if (result.recordset.length === 1) {
       return {
         content: [
           {
             type: "text",
-            text: `Asset details:\n${JSON.stringify(filterNonNullValues(result.recordset[0]), null, 2)}`
+            text: `Asset details:\n${stringifyWithoutNulls(result.recordset[0])}`
           }
         ]
       };
@@ -1436,7 +1440,7 @@ export async function getAssetDetailsHandler(args: any) {
         content: [
           {
             type: "text",
-            text: `Found ${result.recordset.length} assets matching the criteria:\n${JSON.stringify(result.recordset.map(filterNonNullValues), null, 2)}`
+            text: `Found ${result.recordset.length} assets matching the criteria:\n${stringifyWithoutNulls(result.recordset)}`
           }
         ]
       };
@@ -1485,7 +1489,7 @@ export async function getProjectDetailsHandler(args: any) {
       content: [
         {
           type: "text",
-          text: `Project details:\n${JSON.stringify(result.recordset[0], null, 2)}`
+          text: `Project details:\n${stringifyWithoutNulls(result.recordset[0])}`
         }
       ]
     };
@@ -1607,7 +1611,7 @@ export async function getRelatedDocumentsForAssetHandler(args: any) {
       content: [
         {
           type: "text",
-          text: `Found ${result.recordset.length} related documents (total: ${totalCount}):\n${JSON.stringify(result.recordset, null, 2)}`
+          text: `Found ${result.recordset.length} related documents (total: ${totalCount}):\n${stringifyWithoutNulls(result.recordset)}`
         }
       ]
     };
@@ -1729,7 +1733,7 @@ export async function getAssetsForDocumentHandler(args: any) {
       content: [
         {
           type: "text",
-          text: `Found ${result.recordset.length} assets (total: ${totalCount}) related to the document:\n${JSON.stringify(result.recordset, null, 2)}`
+          text: `Found ${result.recordset.length} assets (total: ${totalCount}) related to the document:\n${stringifyWithoutNulls(result.recordset)}`
         }
       ]
     };
@@ -1783,7 +1787,7 @@ export async function getDatabaseSchemaHandler(args: any) {
       content: [
         {
           type: "text",
-          text: `Database schema for ${database}:\n${JSON.stringify(result, null, 2)}`
+          text: `Database schema for ${database}:\n${stringifyWithoutNulls(result)}`
         }
       ]
     };
