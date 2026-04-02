@@ -17,6 +17,15 @@ function pruneNullValues(value: any): any {
     return undefined;
   }
 
+  if (typeof value === 'string') {
+    const normalizedValue = value.trim();
+    if (normalizedValue === '' || normalizedValue === '-') {
+      return undefined;
+    }
+
+    return value;
+  }
+
   if (Array.isArray(value)) {
     return value
       .map((item) => pruneNullValues(item))
