@@ -1,0 +1,145 @@
+# AGENT INSTRUCTIONS FOR DATABASE SEARCH
+
+You have access to two main databases on kgaprd-sql.gkaneka.local: KNA_VLTS_DATA (assets and projects) and AIM_KNA (documents).
+
+## Database Server
+- Server: kgaprd-sql.gkaneka.local
+- Databases: kna_VLTS_DATA, AIM_KNA
+
+## KNA_VLTS_DATA - Assets & Projects
+
+### Asset Management
+- Primary View: `KNA_AssetPropertiesViewByNameBCE` - Contains all asset properties
+- Asset Identification:
+  - Uniqueness determined by `[SAP EQUIPMENT NUMBER]` + `[PROJECT NUMBER]`
+- Departments: Always 3 characters (MOD, EPE, MSE, SUP)
+- Asset Status: Assets with `[c_psAsset_AsBuiltStatus]='retired'` are decommissioned and should be excluded unless explicitly requested
+- Asset Category, Asset Class and Asset Subclass: Together categorize the asset
+- Process Information: Retrieve from Functional Location, Unit, Process, sub process and their descriptions
+- Asset in Workflow: `[c_psApproval_WFStateApproval]` is not null
+- Only return properties which are not null.
+
+### Project Management
+- Primary View: `KNA_ProjectPropertiesView` - Contains all project information
+- Project Types: Projects starting with "RFE-" are investments
+- Project Lookup: Use `LIKE '%[project_number]%'` for partial matching
+- Asset-Project Relationship: Join on `PROJECT NUMBER` field
+- Open Projects: Projects with state different from "Closed" or "discontinued"
+- Plant/As-built Environment: `[PROJECT NUMBER]='-'`
+
+## AIM_KNA - Documents
+
+### Document Management
+- Primary View: `KNA_DocumentPropertiesViewCoPilot` - Contains all document information
+- Asset-Document References: `KNA_AssetDocRefViewCoPilot` - Links assets to documents
+- Key Field: `[c_psDocument_DocumentTitle]` - Most commonly queried field
+- Document Categories: Use `[c_psDocument_DocumentCategoryD]`, `[c_psDocument_DocumentSubC_0]`
+- Document Types: PID, INV, COM, LAY (refer to `[c_psDocument_DocumentCategory]`)
+- Vendor Information: Check `[c_psdocument_vendor]` and `[c_psDocumentReferenceDrawingN]`
+- Retired Documents: Documents with `[c_psDocument_documentAsBuiltSt]='Retired'` are decommissioned
+- Plant/As-built Environment: `[c_psProject_ProjectNumber]='-'`
+
+### Asset-Document Relationships
+- Retrieve assets via `KNA_AssetDocRefViewCoPilot.[ObjectTagRevisionID]` → `KNA_AssetPropertiesViewByNameBCE.[ObjectTagRevisionID]`
+- Retrieve documents via `KNA_AssetDocRefViewCoPilot.DocumentRevisionID` → `KNA_DocumentPropertiesViewCoPilot.DocumentRevisionID`
+- Order references by `KNA_AssetPropertiesViewByNameBCE.[Tag Number]` or `KNA_DocumentPropertiesViewCoPilot.[FileName]`
+
+## Query Patterns
+
+### Asset Search Examples
+```sql
+
+-- Find assets by project
+SELECT * FROM [KNA__VLTS_DATA].[dbo].[KNA_AssetPropertiesViewByNameBCE]
+WHERE [PROJECT NUMBER] LIKE '%1357%'
+  AND [STATUS] != 'retired'
+```
+
+### Project Search Examples
+```sql
+-- Find investment projects
+SELECT * FROM [KNA__VLTS_DATA].[dbo].[KNA_ProjectPropertiesView]
+WHERE [ProjectNumber] LIKE 'RFE-%'
+
+-- Find project by partial number
+SELECT * FROM [KNA__VLTS_DATA].[dbo].[KNA_ProjectPropertiesView]
+WHERE [ProjectNumber] LIKE '%1357%'
+```
+
+### Document Search Examples
+```sql
+-- Search documents by title
+SELECT [c_psDocument_DocumentTitle], [ProjectNumber], [FileName], *
+FROM [AIM_KNA].[dbo].[KNA_DocumentPropertiesViewCoPilot]
+WHERE [c_psDocument_DocumentTitle] LIKE '%search_term%'
+  AND [c_psDocument_documentAsBuiltSt] != 'Retired'
+
+-- Find documents by category
+SELECT * FROM [AIM_KNA].[dbo].[KNA_DocumentPropertiesViewCoPilot]
+WHERE [c_psDocument_DocumentCategory] = 'PID'
+  AND [c_psDocument_documentAsBuiltSt] != 'Retired'
+
+-- Find documents with vendor information
+SELECT * FROM [AIM_KNA].[dbo].[KNA_DocumentPropertiesViewCoPilot]
+WHERE [c_psdocument_vendor] IS NOT NULL
+   OR [c_psDocumentReferenceDrawingN] IS NOT NULL
+```
+
+### Asset-Document Relationship Examples
+```sql
+-- Find documents for an asset
+SELECT d.[c_psDocument_DocumentTitle], d.[FileName], d.[ProjectNumber]
+FROM [AIM_KANEKA].[dbo].[AssetDocRefViewCoPilot] r
+JOIN [AIM_KNA].[dbo].[KNA_DocumentPropertiesViewCoPilot] d ON r.DocumentRevisionID = d.DocumentRevisionID
+JOIN [KNA_VLTS_DATA].[dbo].[KNA_AssetPropertiesViewByNameBCE] a ON r.[ObjectTagRevisionID] = a.[ObjectTagRevisionID]
+WHERE a.[c_psAsset_Asset_Number_Check] = 'V2210H'
+ORDER BY d.[FileName]
+
+-- Find assets for a document
+SELECT a.[TAG NUMBER], a.[SAP EQUIPMENT NUMBER], a.[PROJECT NUMBER]
+FROM [AIM_KNA].[dbo].[KNA_AssetDocRefViewCoPilot] r
+JOIN [AIM_KNA].[dbo].[KNA_DocumentPropertiesViewCoPilot] d ON r.DocumentRevisionID = d.DocumentRevisionID
+JOIN [KNA_VLTS_DATA].[dbo].[KNA_AssetPropertiesViewByNameBCE] a ON r.[ObjectTagRevisionID] = a.[ObjectTagRevisionID]
+WHERE d.[c_psDocument_DocumentTitle] LIKE '%PID%'
+ORDER BY a.[TAG NUMBER]
+```
+
+## MCP Tool Usage Examples
+
+### Project Search
+```json
+{
+  "project_number": "1357",
+  "project_type": "RFE"
+}
+```
+
+### Document Search
+```json
+{
+  "title": "completion report",
+  "category": "COM",
+  "include_retired": false
+}
+```
+
+## Best Practices
+
+- Always return the file name when available
+- Use partial matching for project numbers and document titles
+- Include department codes when searching assets
+- Filter by project type (RFE for investments) when appropriate
+- Exclude retired assets and documents unless specifically requested
+- If the question is unclear, ask user to specify further
+- Read all available columns to understand what data is accessible
+- Start with `get_distinct_values` to explore column content
+- Use `get_columns` to understand table structure before complex queries
+
+-User Interaction:
+- Clarify if asking about asset/document/project
+- Explain data sources and filters used
+- Suggest alternatives when search fails
+- Format results clearly
+
+ ask if a user is asking about an asset or a document or project. users often dont give enough details.
+ -----
