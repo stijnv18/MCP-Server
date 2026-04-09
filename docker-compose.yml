@@ -51,7 +51,7 @@ services:
       ASSET_DOC_REF_VIEW: ${KNA_ASSET_DOC_REF_VIEW:-KNA_AssetDocRefViewCoPilot}
       
   relay-bridge-kb:
-    image: mcr.microsoft.com/azure-relay-bridge/azbridge:latest
+    image: azbridge:0.16.1
     command: -R aim-mcp/http://mcp-server-kb:3000 -x "${KB_RELAY_CONNECTION_STRING}"
     depends_on:
       - mcp-server-kb
