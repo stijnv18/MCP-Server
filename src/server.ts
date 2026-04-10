@@ -162,6 +162,7 @@ export class SimpleMcpServer {
                     transports[newSessionId] = transport;
                   },
                   enableDnsRebindingProtection: false, // Disable for local development
+                  enableJsonResponse: true, // Return JSON instead of SSE on POST — required for Azure Relay (only one active HTTP connection per channel)
                 });
 
                                 // Clean up transport when closed
@@ -196,12 +197,6 @@ export class SimpleMcpServer {
               }
 
               // Handle the request
-              // Force application/json response format instead of text/event-stream (SSE).
-              // The SDK defaults to SSE for POST responses in protocol 2025-11-25, but Azure Relay
-              // can only handle one active HTTP connection per channel. When the initialize POST
-              // keeps an SSE stream open, subsequent POSTs (tools/list, tool calls) are blocked
-              // at the relay and never reach this server.
-              req.headers['accept'] = 'application/json';
               await transport.handleRequest(req, res, requestBody);
             } catch (error) {
               console.error(`[${serviceName}] Request processing error:`, error);
