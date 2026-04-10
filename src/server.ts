@@ -9,7 +9,6 @@ const {
   InitializedNotificationSchema,
   ListToolsRequestSchema,
   McpError,
-  isInitializeRequest,
 } = require("@modelcontextprotocol/sdk/types.js");
 const http = require('http');
 
@@ -77,9 +76,6 @@ export class SimpleMcpServer {
       process.exit(0);
     });
 
-    // Store transports by session ID for session management
-    const transports: { [sessionId: string]: any } = {};
-
     const server = http.createServer(async (req: IncomingMessage, res: ServerResponse) => {
       this.log('Incoming HTTP request', {
         method: req.method || 'unknown',
@@ -110,8 +106,11 @@ export class SimpleMcpServer {
       if (!checkAuth(req, res)) return;
 
       if (req.method === 'POST' && req.url === '/mcp') {
+        // Stateless mode: create a fresh Server + Transport for every POST request.
+        // This matches the behaviour of the .NET ModelContextProtocol.AspNetCore MapMcp()
+        // stateless transport, which the Azure AI Foundry ToolServer expects.
+        // No session IDs, no GET SSE stream, no session state — every request is self-contained.
         try {
-          // Read the request body
           let body = '';
           req.on('data', (chunk) => {
             body += chunk.toString();
@@ -120,9 +119,7 @@ export class SimpleMcpServer {
           req.on('end', async () => {
             try {
               const requestBody = JSON.parse(body);
-              let transport: any;
 
-              // Log POST body details including MCP method and protocol version
               this.log('POST request body', {
                 jsonrpc: requestBody.jsonrpc,
                 method: requestBody.method,
@@ -132,83 +129,35 @@ export class SimpleMcpServer {
                 capabilities: requestBody.params?.capabilities,
               });
 
-              // Check for existing session ID
-              const sessionId = req.headers['mcp-session-id'] as string | undefined;
+              // Create a fresh server + transport per request (stateless)
+              const newServer = new Server(
+                { name: 'mcp-server', version: '1.0.0' },
+                { capabilities: { tools: {} } }
+              );
+              this.setupToolHandlersForServer(newServer);
 
-              if (sessionId && transports[sessionId]) {
-                // Reuse existing transport
-                this.log('Reusing existing transport', { sessionId });
-                transport = transports[sessionId];
-              } else if (!sessionId && isInitializeRequest(requestBody)) {
-                // New initialization request - create new server and transport
-                this.log('Creating new transport for session initialization');
-                const newServer = new Server(
-                  {
-                    name: "mcp-server",
-                    version: "1.0.0",
-                  },
-                  {
-                    capabilities: {
-                      tools: {},
-                    },
-                  }
-                );
+              const transport = new StreamableHTTPServerTransport({
+                sessionIdGenerator: undefined, // Stateless: no session IDs
+                enableJsonResponse: true,       // Return JSON directly, no SSE streams
+                enableDnsRebindingProtection: false,
+              });
 
-                // Set up handlers for the new server
-                this.setupToolHandlersForServer(newServer);
+              transport.onerror = (error: any) => {
+                this.log('Transport error', { error: error?.message });
+              };
 
-                transport = new StreamableHTTPServerTransport({
-                  sessionIdGenerator: () => require('crypto').randomUUID(),
-                  onsessioninitialized: (newSessionId: string) => {
-                    this.log('Session initialized', { sessionId: newSessionId });
-                    transports[newSessionId] = transport;
-                  },
-                  enableDnsRebindingProtection: false, // Disable for local development
-                });
-
-                                // Clean up transport when closed
-                transport.onclose = () => {
-                  this.log('Cleaning up transport', { sessionId: transport.sessionId || 'unknown' });
-                  if (transport.sessionId) {
-                    delete transports[transport.sessionId];
-                  }
-                };
-
-                // Add error handling for transport
-                transport.onerror = (error: any) => {
-                  console.error(`[${serviceName}] Transport error for session ${transport.sessionId}:`, error);
-                };
-
-                // Connect the new server to the transport
-                await newServer.connect(transport);
-              } else {
-                // Invalid request
-                if (!res.headersSent) {
-                  res.writeHead(400, { 'Content-Type': 'application/json' });
-                  res.end(JSON.stringify({
-                    jsonrpc: '2.0',
-                    error: {
-                      code: -32000,
-                      message: 'Bad Request: No valid session ID provided',
-                    },
-                    id: null,
-                  }));
-                }
-                return;
-              }
-
-              // Handle the request
+              await newServer.connect(transport);
               await transport.handleRequest(req, res, requestBody);
+
+              // Clean up after the request is fully handled
+              await newServer.close();
             } catch (error) {
               console.error(`[${serviceName}] Request processing error:`, error);
               if (!res.headersSent) {
                 res.writeHead(500, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({
                   jsonrpc: '2.0',
-                  error: {
-                    code: -32603,
-                    message: 'Internal server error',
-                  },
+                  error: { code: -32603, message: 'Internal server error' },
                   id: null,
                 }));
               }
@@ -222,45 +171,19 @@ export class SimpleMcpServer {
           }
         }
       } else if (req.method === 'GET' && req.url === '/mcp') {
-        // Handle GET requests for server-to-client notifications via SSE
-        this.log('Handling GET request for SSE', {
-          sessionId: (req.headers['mcp-session-id'] as string | undefined) || 'none',
-        });
-        const sessionId = req.headers['mcp-session-id'] as string | undefined;
-        if (!sessionId || !transports[sessionId]) {
-          if (!res.headersSent) {
-            res.writeHead(400);
-            res.end('Invalid or missing session ID');
-          }
-          return;
+        // Stateless mode has no standalone SSE stream — respond 405
+        this.log('GET /mcp rejected (stateless mode — no standalone SSE)');
+        if (!res.headersSent) {
+          res.writeHead(405, { Allow: 'POST, DELETE' });
+          res.end('Method Not Allowed');
         }
-
-        const transport = transports[sessionId];
-        // Fire-and-forget: don't await the GET SSE stream (it would block until client disconnects).
-        // Close it immediately after setup — we don't push server notifications,
-        // and keeping it open occupies a relay connection slot that blocks tool calls.
-        transport.handleRequest(req, res).catch((err: any) => {
-          this.log('GET SSE error', { error: err?.message });
-        });
-        setTimeout(() => {
-          try { transport.closeStandaloneSSEStream(); } catch {}
-        }, 0);
       } else if (req.method === 'DELETE' && req.url === '/mcp') {
-        // Handle DELETE requests for session termination
-        this.log('Handling DELETE request for session termination', {
-          sessionId: (req.headers['mcp-session-id'] as string | undefined) || 'none',
-        });
-        const sessionId = req.headers['mcp-session-id'] as string | undefined;
-        if (!sessionId || !transports[sessionId]) {
-          if (!res.headersSent) {
-            res.writeHead(400);
-            res.end('Invalid or missing session ID');
-          }
-          return;
+        // Stateless mode has no sessions to terminate — respond 200 no-op
+        this.log('DELETE /mcp no-op (stateless mode)');
+        if (!res.headersSent) {
+          res.writeHead(200, { 'Content-Type': 'text/plain; charset=UTF-8' });
+          res.end('OK');
         }
-
-        const transport = transports[sessionId];
-        await transport.handleRequest(req, res);
       } else {
         if (!res.headersSent) {
           res.writeHead(404);
