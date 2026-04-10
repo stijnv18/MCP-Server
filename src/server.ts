@@ -6,7 +6,6 @@ const { StreamableHTTPServerTransport } = require("@modelcontextprotocol/sdk/ser
 const {
   CallToolRequestSchema,
   ErrorCode,
-  InitializeRequestSchema,
   InitializedNotificationSchema,
   ListToolsRequestSchema,
   McpError,
@@ -278,28 +277,23 @@ export class SimpleMcpServer {
   }
 
   private setupToolHandlersForServer(server: any) {
-    // Handle initialize request
-    server.setRequestHandler(InitializeRequestSchema, async (request: any) => {
-      return {
-        protocolVersion: "2025-06-18",
-        capabilities: {
-          tools: {},
-        },
-        serverInfo: {
-          name: "mcp-server",
-          version: "1.0.0",
-        },
-      };
-    });
+    // NOTE: Do NOT override InitializeRequestSchema here.
+    // The SDK's Server class registers its own _oninitialize handler in the constructor which:
+    //   - sets _clientCapabilities and _clientVersion internal state
+    //   - negotiates protocolVersion correctly from SUPPORTED_PROTOCOL_VERSIONS
+    // Overriding it breaks SDK internals and causes silent failures.
 
     // Handle initialized notification
-    server.setNotificationHandler(InitializedNotificationSchema, async () => {
-      // Client is initialized, we can start accepting tool calls
-      this.log('MCP client initialized successfully');
+    server.setNotificationHandler(InitializedNotificationSchema, async (notification: any) => {
+      this.log('MCP client initialized successfully', {
+        clientInfo: server.getClientVersion?.(),
+        clientCapabilities: server.getClientCapabilities?.(),
+      });
     });
 
     // List available tools
     server.setRequestHandler(ListToolsRequestSchema, async () => {
+      this.log('Tools list requested', { toolCount: tools.length, tools: tools.map((t: any) => t.name) });
       return {
         tools
       };
@@ -308,8 +302,15 @@ export class SimpleMcpServer {
     // Handle tool calls
     server.setRequestHandler(CallToolRequestSchema, async (request: any) => {
       const { name, arguments: args } = request.params;
-
-      return await handleToolCall(name, args);
+      this.log('Tool call received', { tool: name, args });
+      try {
+        const result = await handleToolCall(name, args);
+        this.log('Tool call completed', { tool: name, isError: (result as any)?.isError });
+        return result;
+      } catch (error: any) {
+        this.log('Tool call failed', { tool: name, error: error?.message });
+        throw error;
+      }
     });
   }
 }
