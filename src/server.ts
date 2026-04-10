@@ -141,7 +141,7 @@ export class SimpleMcpServer {
                 this.log('Creating new transport for session initialization');
                 const newServer = new Server(
                   { name: 'mcp-server', version: '1.0.0' },
-                  { capabilities: { tools: { listChanged: true } } }
+                  { capabilities: { tools: {} } }
                 );
                 this.setupToolHandlersForServer(newServer, transports);
 
@@ -270,26 +270,11 @@ export class SimpleMcpServer {
     //   - negotiates protocolVersion correctly from SUPPORTED_PROTOCOL_VERSIONS
     // Overriding it breaks SDK internals and causes silent failures.
 
-    // Handle initialized notification.
-    // After the handshake, push notifications/tools/list_changed so the Azure AI Foundry
-    // ToolServer (protocol 2025-11-25) knows to call tools/list. Without this notification
-    // the ToolServer never discovers available tools and immediately sends DELETE.
     server.setNotificationHandler(InitializedNotificationSchema, async (notification: any) => {
       this.log('MCP client initialized successfully', {
         clientInfo: server.getClientVersion?.(),
         clientCapabilities: server.getClientCapabilities?.(),
       });
-
-      // Small delay to ensure the GET SSE standalone stream is registered by the SDK
-      // before we push over it (the GET request may be in-flight at this moment).
-      setTimeout(async () => {
-        try {
-          await server.sendToolListChanged();
-          this.log('Sent notifications/tools/list_changed');
-        } catch (err: any) {
-          this.log('Failed to send tools/list_changed', { error: err?.message });
-        }
-      }, 100);
     });
 
     // List available tools
