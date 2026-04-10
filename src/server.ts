@@ -56,7 +56,7 @@ export class SimpleMcpServer {
       },
       {
         capabilities: {
-          tools: { listChanged: true },
+          tools: {},
         },
       }
     );
@@ -147,7 +147,7 @@ export class SimpleMcpServer {
                   },
                   {
                     capabilities: {
-                      tools: { listChanged: true },
+                      tools: {},
                     },
                   }
                 );
@@ -301,15 +301,6 @@ export class SimpleMcpServer {
         clientInfo: server.getClientVersion?.(),
         clientCapabilities: server.getClientCapabilities?.(),
       });
-
-      // Proactively notify the client that tools are available.
-      // Azure AI Foundry's ToolServer waits for this before calling tools/list.
-      try {
-        await server.notification({ method: 'notifications/tools/list_changed' });
-        this.log('Sent notifications/tools/list_changed to trigger client tools discovery');
-      } catch (e: any) {
-        this.log('Failed to send tools/list_changed notification', { error: e?.message });
-      }
     });
 
     // List available tools
