@@ -56,7 +56,7 @@ export class SimpleMcpServer {
       },
       {
         capabilities: {
-          tools: {},
+          tools: { listChanged: true },
         },
       }
     );
@@ -147,7 +147,7 @@ export class SimpleMcpServer {
                   },
                   {
                     capabilities: {
-                      tools: {},
+                      tools: { listChanged: true },
                     },
                   }
                 );
