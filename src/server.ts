@@ -86,6 +86,7 @@ export class SimpleMcpServer {
         method: req.method || 'unknown',
         url: req.url || 'unknown',
         sessionId: (req.headers['mcp-session-id'] as string | undefined) || 'none',
+        headers: req.headers,
       });
 
       Sentry.withScope((scope: any) => {
@@ -107,6 +108,16 @@ export class SimpleMcpServer {
             try {
               const requestBody = JSON.parse(body);
               let transport: any;
+
+              // Log POST body details including MCP method and protocol version
+              this.log('POST request body', {
+                jsonrpc: requestBody.jsonrpc,
+                method: requestBody.method,
+                id: requestBody.id,
+                protocolVersion: requestBody.params?.protocolVersion,
+                clientInfo: requestBody.params?.clientInfo,
+                capabilities: requestBody.params?.capabilities,
+              });
 
               // Check for existing session ID
               const sessionId = req.headers['mcp-session-id'] as string | undefined;
