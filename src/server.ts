@@ -88,6 +88,18 @@ export class SimpleMcpServer {
         headers: req.headers,
       });
 
+      // Log response status code for every request
+      const originalWriteHead = res.writeHead.bind(res);
+      (res as any).writeHead = (statusCode: number, headersOrMsg?: any, headers?: any) => {
+        this.log('HTTP response', {
+          statusCode,
+          method: req.method,
+          sessionId: (req.headers['mcp-session-id'] as string | undefined) || 'none',
+          contentType: (headers || headersOrMsg)?.['Content-Type'] || (headers || headersOrMsg)?.['content-type'],
+        });
+        return originalWriteHead(statusCode, headersOrMsg, headers);
+      };
+
       Sentry.withScope((scope: any) => {
         scope.setTag('url', req.url || '');
         scope.setTag('method', req.method || '');
@@ -289,6 +301,15 @@ export class SimpleMcpServer {
         clientInfo: server.getClientVersion?.(),
         clientCapabilities: server.getClientCapabilities?.(),
       });
+
+      // Proactively notify the client that tools are available.
+      // Azure AI Foundry's ToolServer waits for this before calling tools/list.
+      try {
+        await server.notification({ method: 'notifications/tools/list_changed' });
+        this.log('Sent notifications/tools/list_changed to trigger client tools discovery');
+      } catch (e: any) {
+        this.log('Failed to send tools/list_changed notification', { error: e?.message });
+      }
     });
 
     // List available tools
