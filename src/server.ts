@@ -152,6 +152,7 @@ export class SimpleMcpServer {
                     transports[newSessionId] = transport;
                   },
                   enableDnsRebindingProtection: false,
+                  enableJsonResponse: true,
                 });
 
                 transport.onclose = () => {
