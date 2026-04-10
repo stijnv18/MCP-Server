@@ -27,7 +27,7 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@modelcontextprotocol/sdk": "1.8.0",
     "@sentry/node": "^10.47.0",
     "@sentry/profiling-node": "^10.47.0",
     "mssql": "^11.0.1"

@@ -1,0 +1,4 @@
+RemoteForward:
+  - RelayName: aim-mcp
+    Host: mcp-server-kb
+    TargetPort: 3000

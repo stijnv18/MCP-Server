@@ -52,7 +52,6 @@ services:
       
   relay-bridge-kb:
     image: azbridge:0.16
-    command: -R aim-mcp/mcp-server-kb:3000 -x "${KB_RELAY_CONNECTION_STRING}"
     depends_on:
       - mcp-server-kb
     restart: unless-stopped
