@@ -9,6 +9,7 @@ const {
   InitializedNotificationSchema,
   ListToolsRequestSchema,
   McpError,
+  isInitializeRequest,
 } = require("@modelcontextprotocol/sdk/types.js");
 const http = require('http');
 
@@ -76,6 +77,9 @@ export class SimpleMcpServer {
       process.exit(0);
     });
 
+    // Transport map is shared across all requests in this HTTP server instance
+    const transports: { [sessionId: string]: any } = {};
+
     const server = http.createServer(async (req: IncomingMessage, res: ServerResponse) => {
       this.log('Incoming HTTP request', {
         method: req.method || 'unknown',
@@ -105,11 +109,9 @@ export class SimpleMcpServer {
 
       if (!checkAuth(req, res)) return;
 
+      // Store transports by session ID for session management
+      // (defined outside createServer so it persists across requests)
       if (req.method === 'POST' && req.url === '/mcp') {
-        // Stateless mode: create a fresh Server + Transport for every POST request.
-        // This matches the behaviour of the .NET ModelContextProtocol.AspNetCore MapMcp()
-        // stateless transport, which the Azure AI Foundry ToolServer expects.
-        // No session IDs, no GET SSE stream, no session state — every request is self-contained.
         try {
           let body = '';
           req.on('data', (chunk) => {
@@ -119,6 +121,7 @@ export class SimpleMcpServer {
           req.on('end', async () => {
             try {
               const requestBody = JSON.parse(body);
+              let transport: any;
 
               this.log('POST request body', {
                 jsonrpc: requestBody.jsonrpc,
@@ -129,28 +132,53 @@ export class SimpleMcpServer {
                 capabilities: requestBody.params?.capabilities,
               });
 
-              // Create a fresh server + transport per request (stateless)
-              const newServer = new Server(
-                { name: 'mcp-server', version: '1.0.0' },
-                { capabilities: { tools: {} } }
-              );
-              this.setupToolHandlersForServer(newServer);
+              const sessionId = req.headers['mcp-session-id'] as string | undefined;
 
-              const transport = new StreamableHTTPServerTransport({
-                sessionIdGenerator: undefined, // Stateless: no session IDs
-                enableJsonResponse: true,       // Return JSON directly, no SSE streams
-                enableDnsRebindingProtection: false,
-              });
+              if (sessionId && transports[sessionId]) {
+                this.log('Reusing existing transport', { sessionId });
+                transport = transports[sessionId];
+              } else if (!sessionId && isInitializeRequest(requestBody)) {
+                this.log('Creating new transport for session initialization');
+                const newServer = new Server(
+                  { name: 'mcp-server', version: '1.0.0' },
+                  { capabilities: { tools: { listChanged: true } } }
+                );
+                this.setupToolHandlersForServer(newServer, transports);
 
-              transport.onerror = (error: any) => {
-                this.log('Transport error', { error: error?.message });
-              };
+                transport = new StreamableHTTPServerTransport({
+                  sessionIdGenerator: () => require('crypto').randomUUID(),
+                  onsessioninitialized: (newSessionId: string) => {
+                    this.log('Session initialized', { sessionId: newSessionId });
+                    transports[newSessionId] = transport;
+                  },
+                  enableDnsRebindingProtection: false,
+                });
 
-              await newServer.connect(transport);
+                transport.onclose = () => {
+                  this.log('Cleaning up transport', { sessionId: transport.sessionId || 'unknown' });
+                  if (transport.sessionId) {
+                    delete transports[transport.sessionId];
+                  }
+                };
+
+                transport.onerror = (error: any) => {
+                  this.log('Transport error', { sessionId: transport.sessionId, error: error?.message });
+                };
+
+                await newServer.connect(transport);
+              } else {
+                if (!res.headersSent) {
+                  res.writeHead(400, { 'Content-Type': 'application/json' });
+                  res.end(JSON.stringify({
+                    jsonrpc: '2.0',
+                    error: { code: -32000, message: 'Bad Request: No valid session ID provided' },
+                    id: null,
+                  }));
+                }
+                return;
+              }
+
               await transport.handleRequest(req, res, requestBody);
-
-              // Clean up after the request is fully handled
-              await newServer.close();
             } catch (error) {
               console.error(`[${serviceName}] Request processing error:`, error);
               if (!res.headersSent) {
@@ -171,19 +199,33 @@ export class SimpleMcpServer {
           }
         }
       } else if (req.method === 'GET' && req.url === '/mcp') {
-        // Stateless mode has no standalone SSE stream — respond 405
-        this.log('GET /mcp rejected (stateless mode — no standalone SSE)');
-        if (!res.headersSent) {
-          res.writeHead(405, { Allow: 'POST, DELETE' });
-          res.end('Method Not Allowed');
+        this.log('Handling GET request for SSE', {
+          sessionId: (req.headers['mcp-session-id'] as string | undefined) || 'none',
+        });
+        const sessionId = req.headers['mcp-session-id'] as string | undefined;
+        if (!sessionId || !transports[sessionId]) {
+          if (!res.headersSent) {
+            res.writeHead(400);
+            res.end('Invalid or missing session ID');
+          }
+          return;
         }
+        const transport = transports[sessionId];
+        await transport.handleRequest(req, res);
       } else if (req.method === 'DELETE' && req.url === '/mcp') {
-        // Stateless mode has no sessions to terminate — respond 200 no-op
-        this.log('DELETE /mcp no-op (stateless mode)');
-        if (!res.headersSent) {
-          res.writeHead(200, { 'Content-Type': 'text/plain; charset=UTF-8' });
-          res.end('OK');
+        this.log('Handling DELETE request for session termination', {
+          sessionId: (req.headers['mcp-session-id'] as string | undefined) || 'none',
+        });
+        const sessionId = req.headers['mcp-session-id'] as string | undefined;
+        if (!sessionId || !transports[sessionId]) {
+          if (!res.headersSent) {
+            res.writeHead(400);
+            res.end('Invalid or missing session ID');
+          }
+          return;
         }
+        const transport = transports[sessionId];
+        await transport.handleRequest(req, res);
       } else {
         if (!res.headersSent) {
           res.writeHead(404);
@@ -221,19 +263,33 @@ export class SimpleMcpServer {
     });
   }
 
-  private setupToolHandlersForServer(server: any) {
+  private setupToolHandlersForServer(server: any, transports?: { [sessionId: string]: any }) {
     // NOTE: Do NOT override InitializeRequestSchema here.
     // The SDK's Server class registers its own _oninitialize handler in the constructor which:
     //   - sets _clientCapabilities and _clientVersion internal state
     //   - negotiates protocolVersion correctly from SUPPORTED_PROTOCOL_VERSIONS
     // Overriding it breaks SDK internals and causes silent failures.
 
-    // Handle initialized notification
+    // Handle initialized notification.
+    // After the handshake, push notifications/tools/list_changed so the Azure AI Foundry
+    // ToolServer (protocol 2025-11-25) knows to call tools/list. Without this notification
+    // the ToolServer never discovers available tools and immediately sends DELETE.
     server.setNotificationHandler(InitializedNotificationSchema, async (notification: any) => {
       this.log('MCP client initialized successfully', {
         clientInfo: server.getClientVersion?.(),
         clientCapabilities: server.getClientCapabilities?.(),
       });
+
+      // Small delay to ensure the GET SSE standalone stream is registered by the SDK
+      // before we push over it (the GET request may be in-flight at this moment).
+      setTimeout(async () => {
+        try {
+          await server.sendToolListChanged();
+          this.log('Sent notifications/tools/list_changed');
+        } catch (err: any) {
+          this.log('Failed to send tools/list_changed', { error: err?.message });
+        }
+      }, 100);
     });
 
     // List available tools
