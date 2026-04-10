@@ -91,11 +91,13 @@ export class SimpleMcpServer {
       // Log response status code for every request
       const originalWriteHead = res.writeHead.bind(res);
       (res as any).writeHead = (statusCode: number, headersOrMsg?: any, headers?: any) => {
+        const resHeaders = headers || headersOrMsg;
         this.log('HTTP response', {
           statusCode,
           method: req.method,
           sessionId: (req.headers['mcp-session-id'] as string | undefined) || 'none',
-          contentType: (headers || headersOrMsg)?.['Content-Type'] || (headers || headersOrMsg)?.['content-type'],
+          contentType: resHeaders?.['Content-Type'] || resHeaders?.['content-type'],
+          responseSessionId: resHeaders?.['mcp-session-id'],
         });
         return originalWriteHead(statusCode, headersOrMsg, headers);
       };
@@ -162,7 +164,6 @@ export class SimpleMcpServer {
                     transports[newSessionId] = transport;
                   },
                   enableDnsRebindingProtection: false, // Disable for local development
-                  enableJsonResponse: true, // Return JSON instead of SSE on POST — required for Azure Relay (only one active HTTP connection per channel)
                 });
 
                                 // Clean up transport when closed
@@ -235,7 +236,15 @@ export class SimpleMcpServer {
         }
 
         const transport = transports[sessionId];
-        await transport.handleRequest(req, res);
+        // Fire-and-forget: don't await the GET SSE stream (it would block until client disconnects).
+        // Close it immediately after setup — we don't push server notifications,
+        // and keeping it open occupies a relay connection slot that blocks tool calls.
+        transport.handleRequest(req, res).catch((err: any) => {
+          this.log('GET SSE error', { error: err?.message });
+        });
+        setTimeout(() => {
+          try { transport.closeStandaloneSSEStream(); } catch {}
+        }, 0);
       } else if (req.method === 'DELETE' && req.url === '/mcp') {
         // Handle DELETE requests for session termination
         this.log('Handling DELETE request for session termination', {
