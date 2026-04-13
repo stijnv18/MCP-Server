@@ -81,11 +81,28 @@ export class SimpleMcpServer {
     const transports: { [sessionId: string]: any } = {};
 
     const server = http.createServer(async (req: IncomingMessage, res: ServerResponse) => {
+      // Force connection close for Azure Relay (azbridge) compatibility.
+      // Chunked transfer encoding (HTTP/1.1 keep-alive default) causes ECONNRESET
+      // when the relay tunnel does not properly reassemble chunked responses.
+      // Connection: close ensures the socket is torn down after each response,
+      // which azbridge uses as the end-of-response signal.
+      res.setHeader('Connection', 'close');
+
       this.log('Incoming HTTP request', {
         method: req.method || 'unknown',
         url: req.url || 'unknown',
         sessionId: (req.headers['mcp-session-id'] as string | undefined) || 'none',
         headers: req.headers,
+      });
+
+      // Log when the response body is fully flushed to the socket
+      res.on('finish', () => {
+        this.log('HTTP response finished', {
+          method: req.method,
+          url: req.url,
+          statusCode: res.statusCode,
+          sessionId: (req.headers['mcp-session-id'] as string | undefined) || 'none',
+        });
       });
 
       // Log response status code for every request
