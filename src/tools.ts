@@ -1020,7 +1020,7 @@ export async function searchAssetsHandler(args: any) {
     if (in_workflow === true) {
       query += ` AND [c_psApproval_WFStateApproval] IS NOT NULL`;
     } else if (in_workflow === false) {
-      query += ` AND [c_psApproval_WFStateApproval] IS NULL`;
+      query += ` AND ([c_psApproval_WFStateApproval] IS NULL OR [c_psApproval_WFStateApproval] = '')`;
     }
 
     if (!include_retired) {
@@ -1093,7 +1093,7 @@ export async function searchAssetsHandler(args: any) {
     if (in_workflow === true) {
       countQuery += ` AND [c_psApproval_WFStateApproval] IS NOT NULL`;
     } else if (in_workflow === false) {
-      countQuery += ` AND [c_psApproval_WFStateApproval] IS NULL`;
+      countQuery += ` AND ([c_psApproval_WFStateApproval] IS NULL OR [c_psApproval_WFStateApproval] = '')`;
     }
 
     if (!include_retired) {
