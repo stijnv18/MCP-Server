@@ -146,13 +146,16 @@ export const tools = [
   },
   {
     name: "get_columns",
-    description: "Get a list of columns for a specific table or view",
+    description: "Get a list of columns for one or more tables or views",
     inputSchema: {
       type: "object",
       properties: {
         table: {
-          type: "string",
-          description: "The fully qualified table name (schema.table) to get columns for"
+          oneOf: [
+            { type: "string", description: "A single fully qualified table name (schema.table)" },
+            { type: "array", items: { type: "string" }, description: "Multiple fully qualified table names" }
+          ],
+          description: "The fully qualified table name(s) (schema.table) to get columns for"
         },
         database: {
           type: "string",
@@ -232,7 +235,7 @@ export const tools = [
   },
   {
     name: "get_distinct_values",
-    description: "Get distinct values from a column, capped at 25 unique values, plus the total count",
+    description: "Get distinct values from one or more columns, capped at 25 unique values each, plus total counts",
     inputSchema: {
       type: "object",
       properties: {
@@ -241,23 +244,30 @@ export const tools = [
           description: "The fully qualified table name (schema.table) to get distinct values from"
         },
         column: {
-          type: "string",
-          description: "The column name to get distinct values from"
+          oneOf: [
+            { type: "string", description: "A single column name" },
+            { type: "array", items: { type: "string" }, description: "Multiple column names" }
+          ],
+          description: "The column name(s) to get distinct values from"
         },
         database: {
           type: "string",
           description: "The database to query (default is current database)"
         }
       },
-      required: ["table", "column","database"]
+      required: ["table", "column", "database"]
     }
   },
   {
     name: "search_assets",
-    description: `Search for assets in ${assetDb}.${assetView} with various filters`,
+    description: `Search for assets in ${assetDb}.${assetView} with various filters. Use 'keyword' when the user mentions a section, process area, or descriptive term (e.g. 'raw material', 'cooling water', 'flare') — it searches across process, subprocess, functional location, unit, and classification fields simultaneously. Combine with 'department' for scoped searches.`,
     inputSchema: {
       type: "object",
       properties: {
+        keyword: {
+          type: "string",
+          description: "Free-text keyword that searches across [ASSET CATEGORY], [ASSET CLASS], [ASSET SUB CLASS], [FUNCTIONAL LOCATION], [UNIT], [PROCESS], and [SUB PROCESS] simultaneously using OR logic. Use this for section/area/process names the user provides that don't map to a specific field (e.g. 'raw material', 'utilities', 'cooling water', 'flare')."
+        },
         asset_number: {
           type: "string",
           description: "Asset number to search for (supports partial matching with %)"
@@ -285,6 +295,14 @@ export const tools = [
         asset_subclass: {
           type: "string",
           description: "Asset subclass for filtering"
+        },
+        area: {
+          type: "string",
+          description: "Area code (e.g. 'B300') stored in the [AREA] column"
+        },
+        sub_area: {
+          type: "string",
+          description: "Sub area code (e.g. '02') stored in the [SUB AREA] column"
         },
         functional_location: {
           type: "string",
@@ -354,13 +372,17 @@ export const tools = [
   },
   {
     name: "search_documents",
-    description: `Search for documents in ${documentDb} ${documentView}`,
+    description: `Search for documents in ${documentDb} ${documentView}. Use 'keyword' to search across both title and subcategory when the user mentions a section, area, or process name (e.g. 'raw material', 'utilities', 'cooling water'). Use 'category' for document types (PID, INV, COM, LAY). Use 'department' for 3-letter dept codes (SUP, EPE, MOD, MSE). If keyword returns 0 results, try get_distinct_values on c_psDocument_DocumentSubC_0 to discover valid subcategory names.`,
     inputSchema: {
       type: "object",
       properties: {
+        keyword: {
+          type: "string",
+          description: "Free-text keyword that searches [c_psDocument_DocumentTitle], [c_psDocument_DocumentSubC_0], AND [c_psDocument_DocumentCategory] simultaneously using OR logic. Use this for section names, process areas, document type codes, or any descriptive term from the user (e.g. 'raw material', 'cooling water', 'PID', 'flare'). Preferred over 'title', 'category', or 'subcategory' alone when the term could appear in more than one field."
+        },
         title: {
           type: "string",
-          description: "Document title to search for ([c_psDocument_DocumentTitle])"
+          description: "Document title to search for ([c_psDocument_DocumentTitle]). Use 'keyword' instead if the term might also be in subcategory."
         },
         project_number: {
           type: "string",
@@ -368,11 +390,11 @@ export const tools = [
         },
         category: {
           type: "string",
-          description: "Document category ([c_psDocument_DocumentCategory]) - PID, INV, COM, LAY, etc."
+          description: "Document type/category ([c_psDocument_DocumentCategory]). Known values: PID (Piping & Instrumentation Diagrams), INV (inventory), COM (completion reports), LAY (layout drawings)."
         },
         subcategory: {
           type: "string",
-          description: "Document subcategory ([c_psDocument_DocumentSubC_0])"
+          description: "Document subcategory or section grouping ([c_psDocument_DocumentSubC_0]). Examples: section names, process areas. Supports partial matching. Use 'keyword' if unsure whether the term is in title or subcategory."
         },
         vendor: {
           type: "string",
@@ -417,6 +439,10 @@ export const tools = [
         sap_equipment_number: {
           type: "string",
           description: "SAP equipment number"
+        },
+        department: {
+          type: "string",
+          description: "3-character department code (MOD, EPE, MSE, SUP)"
         }
       }
     }
@@ -650,33 +676,39 @@ export async function getTablesHandler(args: any) {
 
 export async function getColumnsHandler(args: any) {
   const { table, database } = args;
+  const tables: string[] = Array.isArray(table) ? table : [table];
 
   try {
     const pool = getPool();
-    let query = `
-      SELECT c.name AS column_name, t.name AS data_type, c.max_length, c.precision, c.scale, c.is_nullable
-      FROM sys.columns c
-      INNER JOIN sys.types t ON c.user_type_id = t.user_type_id
-      WHERE c.object_id = OBJECT_ID('${table}')
-    `;
-    if (database) {
-      query = `USE [${database}]; ${query}`;
+    const results: Record<string, any[]> = {};
+
+    for (const t of tables) {
+      let query = `
+        SELECT c.name AS column_name, t.name AS data_type, c.max_length, c.precision, c.scale, c.is_nullable
+        FROM sys.columns c
+        INNER JOIN sys.types t ON c.user_type_id = t.user_type_id
+        WHERE c.object_id = OBJECT_ID('${t}')
+      `;
+      if (database) {
+        query = `USE [${database}]; ${query}`;
+      }
+      console.log(`Executing query: ${query}`);
+      const result = await pool.request().query(query);
+      results[t] = result.recordset.map((row: any) => ({
+        name: row.column_name,
+        type: row.data_type,
+        max_length: row.max_length,
+        precision: row.precision,
+        scale: row.scale,
+        nullable: row.is_nullable
+      }));
     }
-    console.log(`Executing query: ${query}`);
-    const result = await pool.request().query(query);
-    const columns = result.recordset.map((row: any) => ({
-      name: row.column_name,
-      type: row.data_type,
-      max_length: row.max_length,
-      precision: row.precision,
-      scale: row.scale,
-      nullable: row.is_nullable
-    }));
+
     return {
       content: [
         {
           type: "text",
-          text: `Columns in table ${table}: ${stringifyWithoutNulls(columns)}`
+          text: stringifyWithoutNulls(tables.length === 1 ? { table: tables[0], columns: results[tables[0]] } : results)
         }
       ]
     };
@@ -690,7 +722,7 @@ export async function getColumnsHandler(args: any) {
       content: [
         {
           type: "text",
-          text: `Error querying columns for table ${table}: ${error instanceof Error ? error.message : String(error)}`
+          text: `Error querying columns for table(s) ${tables.join(', ')}: ${error instanceof Error ? error.message : String(error)}`
         }
       ]
     };
@@ -901,31 +933,36 @@ export async function getTableJoinsHandler(args: any) {
 
 export async function getDistinctValuesHandler(args: any) {
   const { table, column, database } = args;
+  const columns: string[] = Array.isArray(column) ? column : [column];
 
   try {
     const pool = getPool();
-    let distinctQuery = `SELECT DISTINCT TOP 25 [${column}] FROM ${table}`;
-    let countQuery = `SELECT COUNT(DISTINCT [${column}]) AS total_count FROM ${table}`;
-    if (database) {
-      distinctQuery = `USE [${database}]; ${distinctQuery}`;
-      countQuery = `USE [${database}]; ${countQuery}`;
+    const results: any[] = [];
+
+    for (const col of columns) {
+      let distinctQuery = `SELECT DISTINCT TOP 25 [${col}] FROM ${table}`;
+      let countQuery = `SELECT COUNT(DISTINCT [${col}]) AS total_count FROM ${table}`;
+      if (database) {
+        distinctQuery = `USE [${database}]; ${distinctQuery}`;
+        countQuery = `USE [${database}]; ${countQuery}`;
+      }
+      console.log(`Executing distinct query: ${distinctQuery}`);
+      const distinctResult = await pool.request().query(distinctQuery);
+      console.log(`Executing count query: ${countQuery}`);
+      const countResult = await pool.request().query(countQuery);
+      results.push({
+        table,
+        column: col,
+        distinct_values: distinctResult.recordset.map((row: any) => row[col]),
+        total_count: countResult.recordset[0].total_count
+      });
     }
-    console.log(`Executing distinct query: ${distinctQuery}`);
-    const distinctResult = await pool.request().query(distinctQuery);
-    console.log(`Executing count query: ${countQuery}`);
-    const countResult = await pool.request().query(countQuery);
-    const distinctValues = distinctResult.recordset.map((row: any) => row[column]);
-    const totalCount = countResult.recordset[0].total_count;
+
     return {
       content: [
         {
           type: "text",
-          text: stringifyWithoutNulls({
-            table: table,
-            column: column,
-            distinct_values: distinctValues,
-            total_count: totalCount
-          })
+          text: stringifyWithoutNulls(columns.length === 1 ? results[0] : results)
         }
       ]
     };
@@ -949,6 +986,7 @@ export async function getDistinctValuesHandler(args: any) {
 // New specialized handler functions for BC_VLTS_DATA and AIM_KANEKA
 export async function searchAssetsHandler(args: any) {
   const {
+    keyword,
     asset_number,
     department,
     project_number,
@@ -956,6 +994,8 @@ export async function searchAssetsHandler(args: any) {
     asset_category,
     asset_class,
     asset_subclass,
+    area,
+    sub_area,
     functional_location,
     unit,
     process: processFilter,
@@ -971,6 +1011,11 @@ export async function searchAssetsHandler(args: any) {
   try {
     const pool = getPool();
     let query = `SELECT TOP ${cappedLimit} * FROM [${assetDb}].[dbo].[${assetView}] WHERE 1=1`;
+
+    // keyword searches across classification and process fields simultaneously
+    if (keyword) {
+      query += ` AND ([ASSET CATEGORY] LIKE @keyword OR [ASSET CLASS] LIKE @keyword OR [ASSET SUB CLASS] LIKE @keyword OR [FUNCTIONAL LOCATION] LIKE @keyword OR [UNIT] LIKE @keyword OR [PROCESS] LIKE @keyword OR [SUB PROCESS] LIKE @keyword)`;
+    }
 
     // Use asset_number with LIKE pattern if provided
     if (asset_number) {
@@ -1001,6 +1046,14 @@ export async function searchAssetsHandler(args: any) {
       query += ` AND [ASSET SUB CLASS] = @asset_subclass`;
     }
 
+    if (area) {
+      query += ` AND [AREA] LIKE @area`;
+    }
+
+    if (sub_area) {
+      query += ` AND [SUB AREA] LIKE @sub_area`;
+    }
+
     if (functional_location) {
       query += ` AND [FUNCTIONAL LOCATION] LIKE @functional_location`;
     }
@@ -1027,23 +1080,33 @@ export async function searchAssetsHandler(args: any) {
       query += ` AND ([StateText] != 'Retired' OR [StateText] IS NULL)`;
     }
 
+    const bindAssetParams = (req: any) => {
+      if (keyword) req = req.input('keyword', `%${keyword}%`);
+      if (asset_number) req = req.input('asset_number', `${asset_number.replace(/\s+/g, '')}%`);
+      if (department) req = req.input('department', department);
+      if (project_number) req = req.input('project_number', `%${project_number}%`);
+      if (sap_equipment_number) req = req.input('sap_equipment_number', sap_equipment_number);
+      if (asset_category) req = req.input('asset_category', asset_category);
+      if (asset_class) req = req.input('asset_class', asset_class);
+      if (asset_subclass) req = req.input('asset_subclass', asset_subclass);
+      if (area) req = req.input('area', `%${area}%`);
+      if (sub_area) req = req.input('sub_area', `%${sub_area}%`);
+      if (functional_location) req = req.input('functional_location', `%${functional_location}%`);
+      if (unit) req = req.input('unit', `%${unit}%`);
+      if (processFilter) req = req.input('process', `%${processFilter}%`);
+      if (subprocessFilter) req = req.input('subprocess', `%${subprocessFilter}%`);
+      return req;
+    };
+
     console.log(`Executing query: ${query}`);
-    const result = await pool.request()
-      .input('asset_number', asset_number ? `${asset_number.replace(/\s+/g, '')}%` : '')
-      .input('department', department || '')
-      .input('project_number', project_number ? `%${project_number}%` : '')
-      .input('sap_equipment_number', sap_equipment_number || '')
-      .input('asset_category', asset_category || '')
-      .input('asset_class', asset_class || '')
-      .input('asset_subclass', asset_subclass || '')
-      .input('functional_location', functional_location ? `%${functional_location}%` : '')
-      .input('unit', unit ? `%${unit}%` : '')
-      .input('process', processFilter ? `%${processFilter}%` : '')
-      .input('subprocess', subprocessFilter ? `%${subprocessFilter}%` : '')
-      .query(query);
+    const result = await bindAssetParams(pool.request()).query(query);
 
     // Execute count query to get total results
     let countQuery = `SELECT COUNT(*) AS total_count FROM [${assetDb}].[dbo].[${assetView}] WHERE 1=1`;
+
+    if (keyword) {
+      countQuery += ` AND ([ASSET CATEGORY] LIKE @keyword OR [ASSET CLASS] LIKE @keyword OR [ASSET SUB CLASS] LIKE @keyword OR [FUNCTIONAL LOCATION] LIKE @keyword OR [UNIT] LIKE @keyword OR [PROCESS] LIKE @keyword OR [SUB PROCESS] LIKE @keyword)`;
+    }
 
     // Use asset_number with LIKE pattern if provided
     if (asset_number) {
@@ -1074,6 +1137,14 @@ export async function searchAssetsHandler(args: any) {
       countQuery += ` AND [ASSET SUB CLASS] = @asset_subclass`;
     }
 
+    if (area) {
+      countQuery += ` AND [AREA] LIKE @area`;
+    }
+
+    if (sub_area) {
+      countQuery += ` AND [SUB AREA] LIKE @sub_area`;
+    }
+
     if (functional_location) {
       countQuery += ` AND [FUNCTIONAL LOCATION] LIKE @functional_location`;
     }
@@ -1101,19 +1172,7 @@ export async function searchAssetsHandler(args: any) {
     }
 
     console.log(`Executing count query: ${countQuery}`);
-    const countResult = await pool.request()
-      .input('asset_number', asset_number ? `%${asset_number.replace(/\s+/g, '')}%` : '')
-      .input('department', department || '')
-      .input('project_number', project_number ? `%${project_number}%` : '')
-      .input('sap_equipment_number', sap_equipment_number || '')
-      .input('asset_category', asset_category || '')
-      .input('asset_class', asset_class || '')
-      .input('asset_subclass', asset_subclass || '')
-      .input('functional_location', functional_location ? `%${functional_location}%` : '')
-      .input('unit', unit ? `%${unit}%` : '')
-      .input('process', processFilter ? `%${processFilter}%` : '')
-      .input('subprocess', subprocessFilter ? `%${subprocessFilter}%` : '')
-      .query(countQuery);
+    const countResult = await bindAssetParams(pool.request()).query(countQuery);
 
     const totalCount = countResult.recordset[0].total_count;
 
@@ -1232,6 +1291,7 @@ export async function searchProjectsHandler(args: any) {
 
 export async function searchDocumentsHandler(args: any) {
   const {
+    keyword,
     title,
     project_number,
     category,
@@ -1247,10 +1307,11 @@ export async function searchDocumentsHandler(args: any) {
   // Cap limit at 25
   const cappedLimit = Math.min(limit, 25);
 
-  try {
-    const pool = getPool();
-    let query = `SELECT TOP ${cappedLimit} *
-    FROM [${documentDb}].[dbo].[${documentView}] WHERE 1=1`;
+  const buildConditions = (query: string, req: any): { query: string; req: any } => {
+    // keyword searches across title AND subcategory (OR logic)
+    if (keyword) {
+      query += ` AND ([c_psDocument_DocumentTitle] LIKE @keyword OR [c_psDocument_DocumentSubC_0] LIKE @keyword OR [c_psDocument_DocumentCategory] LIKE @keyword)`;
+    }
 
     if (title) {
       query += ` AND [c_psDocument_DocumentTitle] LIKE @title`;
@@ -1290,68 +1351,34 @@ export async function searchDocumentsHandler(args: any) {
       query += ` AND [c_psProject_ProjectNumber] != '-'`;
     }
 
+    return { query, req };
+  };
+
+  try {
+    const pool = getPool();
+    let baseQuery = `SELECT TOP ${cappedLimit} * FROM [${documentDb}].[dbo].[${documentView}] WHERE 1=1`;
+    let countBaseQuery = `SELECT COUNT(*) AS total_count FROM [${documentDb}].[dbo].[${documentView}] WHERE 1=1`;
+
+    const { query } = buildConditions(baseQuery, null);
+    const { query: countQuery } = buildConditions(countBaseQuery, null);
+
+    const bindParams = (req: any) => {
+      if (keyword) req = req.input('keyword', `%${keyword}%`);
+      if (title) req = req.input('title', `%${title}%`);
+      if (project_number) req = req.input('project_number', `%${project_number}%`);
+      if (category) req = req.input('category', category);
+      if (subcategory) req = req.input('subcategory', `%${subcategory}%`);
+      if (vendor) req = req.input('vendor', `%${vendor}%`);
+      if (department) req = req.input('department', department);
+      if (reference_drawing) req = req.input('reference_drawing', `%${reference_drawing}%`);
+      return req;
+    };
+
     console.log(`Executing query: ${query}`);
-    const result = await pool.request()
-      .input('title', title ? `%${title}%` : '')
-      .input('project_number', project_number ? `%${project_number}%` : '')
-      .input('category', category || '')
-      .input('subcategory', subcategory ? `%${subcategory}%` : '')
-      .input('vendor', vendor ? `%${vendor}%` : '')
-      .input('department', department || '')
-      .input('reference_drawing', reference_drawing ? `%${reference_drawing}%` : '')
-      .query(query);
-
-    // Execute count query to get total results
-    let countQuery = `SELECT COUNT(*) AS total_count FROM [${documentDb}].[dbo].[${documentView}] WHERE 1=1`;
-
-    if (title) {
-      countQuery += ` AND [c_psDocument_DocumentTitle] LIKE @title`;
-    }
-
-    if (project_number) {
-      countQuery += ` AND [ProjectNumber] LIKE @project_number`;
-    }
-
-    if (category) {
-      countQuery += ` AND [c_psDocument_DocumentCategory] = @category`;
-    }
-
-    if (subcategory) {
-      countQuery += ` AND [c_psDocument_DocumentSubC_0] LIKE @subcategory`;
-    }
-
-    if (vendor) {
-      countQuery += ` AND [c_psdocument_vendor] LIKE @vendor`;
-    }
-
-    if (department) {
-      countQuery += ` AND [c_Custom_Department] = @department`;
-    }
-
-    if (reference_drawing) {
-      countQuery += ` AND [c_psDocument_ReferenceDrawingN] LIKE @reference_drawing`;
-    }
-
-    if (!include_retired) {
-      countQuery += ` AND ([c_psApproval_WFStateApproval] != 'Retired' OR [c_psApproval_WFStateApproval] IS NULL)`;
-    }
-
-    if (is_plant_environment === true) {
-      countQuery += ` AND [c_psProject_ProjectNumber] = '-'`;
-    } else if (is_plant_environment === false) {
-      countQuery += ` AND [c_psProject_ProjectNumber] != '-'`;
-    }
+    const result = await bindParams(pool.request()).query(query);
 
     console.log(`Executing count query: ${countQuery}`);
-    const countResult = await pool.request()
-      .input('title', title ? `%${title}%` : '')
-      .input('project_number', project_number ? `%${project_number}%` : '')
-      .input('category', category || '')
-      .input('subcategory', subcategory ? `%${subcategory}%` : '')
-      .input('vendor', vendor ? `%${vendor}%` : '')
-      .input('department', department || '')
-      .input('reference_drawing', reference_drawing ? `%${reference_drawing}%` : '')
-      .query(countQuery);
+    const countResult = await bindParams(pool.request()).query(countQuery);
 
     const totalCount = countResult.recordset[0].total_count;
 
@@ -1380,7 +1407,7 @@ export async function searchDocumentsHandler(args: any) {
 }
 
 export async function getAssetDetailsHandler(args: any) {
-  const { asset_tag, sap_equipment_number } = args;
+  const { asset_tag, sap_equipment_number, department } = args;
 
   // Validate that at least one identifier is provided
   if (!asset_tag && !sap_equipment_number) {
@@ -1413,8 +1440,16 @@ export async function getAssetDetailsHandler(args: any) {
       request = request.input('sap_equipment_number', sap_equipment_number);
     }
 
+    if (department) {
+      request = request.input('department', department);
+    }
+
     query = `SELECT * FROM [${assetDb}].[dbo].[${assetView}]
              WHERE ${conditions.join(' OR ')}`;
+
+    if (department) {
+      query += ` AND [DEPARTMENT] = @department`;
+    }
 
     console.log(`Executing query: ${query}`);
     const result = await request.query(query);

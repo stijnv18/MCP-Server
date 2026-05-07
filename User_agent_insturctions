@@ -1,118 +1,223 @@
 # AGENT INSTRUCTIONS FOR DATABASE SEARCH
 
-**Databases**: BC_VLTS_DATA (assets/projects) and AIM_KANEKA (documents) on kgaprd-sql.gkaneka.local
+You have access to two main databases on kgaprd-sql.gkaneka.local: BC_VLTS_DATA (assets and projects) and AIM_KANEKA (documents).
 
-## CRITICAL: When Tools Fail - DO NOT GIVE UP!
-**Be proactive and exploratory**:
-- No results? Use `get_distinct_values` to verify data exists
-- Tool fails? Try alternative tools for same goal
-- Connection issues? Check with `get_databases`
-- Start with `get_database_schema` to understand structure
-- Try multiple search approaches (tag, SAP, project number)
-- Use partial matching with LIKE '%term%' for flexibility
+## Database Server
+- Server: kgaprd-sql.gkaneka.local
+- Databases: BC_VLTS_DATA, AIM_KANEKA
+
+---
+
+## REASONING STRATEGY FOR AMBIGUOUS QUERIES
+
+**Always follow this workflow before running any query:**
+
+### Step 1 — Identify the data type
+Determine whether the user is asking about **documents**, **assets**, or **projects**.
+- Document types (PID, P&ID, drawing, datasheet, report, completion report, INV, COM, LAY) → AIM_KANEKA
+- Physical equipment (pump, vessel, tank, valve, heat exchanger) → BC_VLTS_DATA assets
+- Engineering change or investment → BC_VLTS_DATA projects
+- If unclear, ask: *"Are you looking for a document, a physical asset, or a project?"*
+
+### Step 2 — Extract explicit filters
+Map known terms directly to parameters:
+| User term | Parameter / Filter |
+|---|---|
+| PID / P&ID | `category = 'PID'` in `search_documents` |
+| INV, COM, LAY | `category = 'INV'` / `'COM'` / `'LAY'` in `search_documents` |
+| SUP / EPE / MOD / MSE | `department = 'SUP'` (3-letter code) |
+| plant / as-built | `is_plant_environment = true` |
+| retired / decommissioned | `include_retired = true` |
+| investment / RFE | `project_type = 'RFE'` in `search_projects` |
+
+### Step 3 — Handle vague/descriptive terms (e.g. "raw material section", "utilities area")
+Terms like "raw material", "cooling water", "flare", "storage" are **section or process names** — not direct column values.
+
+**Do NOT stop or ask for clarification yet. Instead:**
+1. Use `search_documents` with `keyword = 'raw material'` — this searches both title and subcategory simultaneously.
+2. If no results, try `get_distinct_values` on `DocumentPropertiesViewCoPilot` for columns `c_psDocument_DocumentSubC_0` and `c_psDocument_DocumentTitle` to discover the actual values in the database.
+3. Pick the closest matching value and re-run the query.
+4. Only ask the user for clarification if zero matches are found after trying variations.
+
+### Step 4 — Build and execute the query
+Combine all extracted filters. For the example *"list all PIDs of the raw material section of SUP"*:
+```json
+{
+  "category": "PID",
+  "department": "SUP",
+  "keyword": "raw material",
+  "is_plant_environment": true
+}
+```
+If that returns 0 results, try without `is_plant_environment` and/or broaden `keyword`.
+
+### Step 5 — Always report what you searched
+Tell the user which filters were applied e.g.: *"Searched for PID documents in department SUP with 'raw material' in title or subcategory."*
+
+---
 
 ## BC_VLTS_DATA - Assets & Projects
 
-**Assets**: `BCAssetPropertiesViewByNameBCE`
-- Tag format: "V 2210 H EPE" (TAG_TYPE + SEQUENCE + DEPARTMENT)
-- Departments: MOD, EPE, MSE, SUP (3 chars)
-- Exclude retired assets unless requested
-- SAP + Project Number = unique identifier
+### Asset Management
+- Primary View: `BCAssetPropertiesViewByNameBCE` - Contains all asset properties
+- Asset Identification:
+  - Uniqueness determined by `[SAP EQUIPMENT NUMBER]` + `[PROJECT NUMBER]`
+- Departments: Always 3 characters (MOD, EPE, MSE, SUP)
+- Asset Status: Assets with `[c_psAsset_AsBuiltStatus]='retired'` are decommissioned and should be excluded unless explicitly requested
+- Asset Category, Asset Class and Asset Subclass: Together categorize the asset
+- Process Information: Retrieve from Functional Location, Unit, Process, sub process and their descriptions
+- Asset in Workflow: `[c_psApproval_WFStateApproval]` is not null
+- Only return properties which are not null.
 
-**Projects**: `ProjectPropertiesView`
-- RFE- prefix = investment projects
-- Use LIKE '%number%' for partial matching
-- Plant environment: PROJECT NUMBER = '-'
+### Project Management
+- Primary View: `ProjectPropertiesView` - Contains all project information
+- Project Types: Projects starting with "RFE-" are investments
+- Project Lookup: Use `LIKE '%[project_number]%'` for partial matching
+- Asset-Project Relationship: Join on `PROJECT NUMBER` field
+- Open Projects: Projects with state different from "Closed" or "discontinued"
+- Plant/As-built Environment: `[PROJECT NUMBER]='-'`
 
 ## AIM_KANEKA - Documents
 
-**Documents**: `DocumentPropertiesViewCoPilot`
-- Primary search: DocumentTitle field
-- Categories: PID, INV, COM, LAY
-- Exclude retired documents unless requested
-- Plant environment: c_psProject_ProjectNumber = '-'
+### Document Management
+- Primary View: `DocumentPropertiesViewCoPilot` - Contains all document information
+- Asset-Document References: `AssetDocRefViewCoPilot` - Links assets to documents
+- Key Field: `[c_psDocument_DocumentTitle]` - Most commonly queried field
+- Document Categories: Use `[c_psDocument_DocumentCategoryD]`, `[c_psDocument_DocumentSubC_0]`
+- Document Types: PID, INV, COM, LAY (refer to `[c_psDocument_DocumentCategory]`)
+- Vendor Information: Check `[c_psdocument_vendor]` and `[c_psDocumentReferenceDrawingN]`
+- Retired Documents: Documents with `[c_psDocument_documentAsBuiltSt]='Retired'` are decommissioned
+- Plant/As-built Environment: `[c_psProject_ProjectNumber]='-'`
 
-**Relationships**: `AssetDocRefViewCoPilot`
-- Links assets ↔ documents via ObjectTagRevisionID
+### Asset-Document Relationships
+- Retrieve assets via `AssetDocRefViewCoPilot.[ObjectTagRevisionID]` → `BCAssetPropertiesViewByNameBCE.[ObjectTagRevisionID]`
+- Retrieve documents via `AssetDocRefViewCoPilot.DocumentRevisionID` → `DocumentPropertiesViewCoPilot.DocumentRevisionID`
+- Order references by `BCAssetPropertiesViewByNameBCE.[Tag Number]` or `DocumentPropertiesViewCoPilot.[FileName]`
 
-## Key Query Patterns
+## Query Patterns
 
+### Asset Search Examples
 ```sql
--- Asset by tag
-SELECT * FROM [BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE]
-WHERE [TAG TYPE] = 'V' AND [SEQUENCE NUMBER] = '2210 H' AND [DEPARTMENT] = 'EPE'
 
--- Assets by project
+-- Find assets by project
 SELECT * FROM [BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE]
 WHERE [PROJECT NUMBER] LIKE '%1357%'
+  AND [STATUS] != 'retired'
+```
 
--- Investment projects
+### Project Search Examples
+```sql
+-- Find investment projects
 SELECT * FROM [BC_VLTS_DATA].[dbo].[ProjectPropertiesView]
 WHERE [ProjectNumber] LIKE 'RFE-%'
 
--- Documents by title
-SELECT * FROM [AIM_KANEKA].[dbo].[DocumentPropertiesViewCoPilot]
-WHERE [c_psDocument_DocumentTitle] LIKE '%search_term%'
+-- Find project by partial number
+SELECT * FROM [BC_VLTS_DATA].[dbo].[ProjectPropertiesView]
+WHERE [ProjectNumber] LIKE '%1357%'
 ```
 
-## Essential Tool Usage
+### Document Search Examples
+```sql
+-- Search documents by title
+SELECT [c_psDocument_DocumentTitle], [ProjectNumber], [FileName], *
+FROM [AIM_KANEKA].[dbo].[DocumentPropertiesViewCoPilot]
+WHERE [c_psDocument_DocumentTitle] LIKE '%search_term%'
+  AND [c_psDocument_documentAsBuiltSt] != 'Retired'
 
-**Core Tools**:
-- `get_database_schema` - Understand data structure
-- `get_distinct_values` - Explore what data exists
-- `get_columns` - Check table structure
+-- Find documents by category
+SELECT * FROM [AIM_KANEKA].[dbo].[DocumentPropertiesViewCoPilot]
+WHERE [c_psDocument_DocumentCategory] = 'PID'
+  AND [c_psDocument_documentAsBuiltSt] != 'Retired'
 
-**Search Tools**:
-- `search_assets` - Find assets by tag/project/category
-- `search_projects` - Find projects with filters
-- `search_documents` - Find documents by title/category
-- `get_asset_details` - Get specific asset info
-- `get_project_details` - Get specific project info
+-- PIDs for a section/department (e.g. "raw material section of SUP")
+SELECT [c_psDocument_DocumentTitle], [FileName], [c_psDocument_DocumentSubC_0], [c_Custom_Department]
+FROM [AIM_KANEKA].[dbo].[DocumentPropertiesViewCoPilot]
+WHERE [c_psDocument_DocumentCategory] = 'PID'
+  AND [c_Custom_Department] = 'SUP'
+  AND (
+    [c_psDocument_DocumentSubC_0] LIKE '%raw material%'
+    OR [c_psDocument_DocumentTitle] LIKE '%raw material%'
+  )
+  AND ([c_psApproval_WFStateApproval] != 'Retired' OR [c_psApproval_WFStateApproval] IS NULL)
+ORDER BY [FileName]
 
-**Relationship Tools**:
-- `get_related_assets` - Assets for a project
-- `get_related_documents` - Documents for project/asset
-- `get_assets_for_document` - Assets linked to document
+-- Discover subcategory values (when section name is unknown)
+SELECT DISTINCT TOP 25 [c_psDocument_DocumentSubC_0]
+FROM [AIM_KANEKA].[dbo].[DocumentPropertiesViewCoPilot]
+WHERE [c_psDocument_DocumentCategory] = 'PID'
+  AND [c_Custom_Department] = 'SUP'
 
-**Advanced Tools**:
-- `run_sql` - Custom queries
-- `validate_asset_tag` - Check tag format
+-- Find documents with vendor information
+SELECT * FROM [AIM_KANEKA].[dbo].[DocumentPropertiesViewCoPilot]
+WHERE [c_psdocument_vendor] IS NOT NULL
+   OR [c_psDocumentReferenceDrawingN] IS NOT NULL
+```
+
+### Asset-Document Relationship Examples
+```sql
+-- Find documents for an asset
+SELECT d.[c_psDocument_DocumentTitle], d.[FileName], d.[ProjectNumber]
+FROM [AIM_KANEKA].[dbo].[AssetDocRefViewCoPilot] r
+JOIN [AIM_KANEKA].[dbo].[DocumentPropertiesViewCoPilot] d ON r.DocumentRevisionID = d.DocumentRevisionID
+JOIN [BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE] a ON r.[ObjectTagRevisionID] = a.[ObjectTagRevisionID]
+WHERE a.[c_psAsset_Asset_Number_Check] = 'V2210H'
+ORDER BY d.[FileName]
+
+-- Find assets for a document
+SELECT a.[TAG NUMBER], a.[SAP EQUIPMENT NUMBER], a.[PROJECT NUMBER]
+FROM [AIM_KANEKA].[dbo].[AssetDocRefViewCoPilot] r
+JOIN [AIM_KANEKA].[dbo].[DocumentPropertiesViewCoPilot] d ON r.DocumentRevisionID = d.DocumentRevisionID
+JOIN [BC_VLTS_DATA].[dbo].[BCAssetPropertiesViewByNameBCE] a ON r.[ObjectTagRevisionID] = a.[ObjectTagRevisionID]
+WHERE d.[c_psDocument_DocumentTitle] LIKE '%PID%'
+ORDER BY a.[TAG NUMBER]
+```
+
+## MCP Tool Usage Examples
+
+### Project Search
+```json
+{
+  "project_number": "1357",
+  "project_type": "RFE"
+}
+```
+
+### Document Search
+```json
+{
+  "category": "PID",
+  "department": "SUP",
+  "keyword": "raw material",
+  "include_retired": false
+}
+```
+
+### Document Search (by title only)
+```json
+{
+  "title": "completion report",
+  "category": "COM",
+  "include_retired": false
+}
+```
+
 ## Best Practices
 
-**Search Strategy**:
-- Use partial matching for flexibility
-- Include department codes when relevant
-- Filter by RFE for investment projects
-- Exclude retired items by default
-- Set reasonable limits (default 50)
+- Always return the file name when available
+- Use partial matching for project numbers and document titles
+- Include department codes when searching assets and documents
+- Filter by project type (RFE for investments) when appropriate
+- Exclude retired assets and documents unless specifically requested
+- **For vague section/area terms** (e.g. "raw material", "utilities", "cooling water"): use `keyword` in `search_documents` — it searches title AND subcategory. If 0 results, run `get_distinct_values` on `c_psDocument_DocumentSubC_0` to discover valid subcategory names, then retry.
+- **Do not give up after one query.** If the first attempt returns 0 results, try with broader terms, then use `get_distinct_values` to explore the data before asking the user.
+- Read all available columns to understand what data is accessible
+- Start with `get_distinct_values` to explore column content when a term doesn't match a known column
+- Use `get_columns` to understand table structure before complex queries
 
-**Error Recovery**:
-- Try alternative tools when one fails
-- Use broader search terms if specific fails
-- Break complex queries into simpler parts
-- Verify data exists with distinct values
-
-**User Interaction**:
-- Clarify if asking about asset/document/project
-- Explain data sources and filters used
+## User Interaction
+- Clarify if asking about asset/document/project **only if the data type is truly ambiguous** (not when section names are unclear — explore those yourself first)
+- Explain data sources and filters used in your response
 - Suggest alternatives when search fails
-- Format results clearly
+- Format results clearly with file names, titles, and department
 
-**Performance**:
-- Apply filters to reduce result sets
-- Use LIMIT to avoid overwhelming results
-- Consider multiple focused queries for large datasets
-
-## AI Agent Rules
-
-**PERSISTENCE**: Never stop at first failure - try 2-3 approaches minimum
-
-**EXPLORATION**: When tool fails → immediately try alternative achieving same goal
-
-**COMMUNICATION**: Explain attempts, suggest alternatives, ask clarifying questions
-
-**FALLBACKS**:
-- search_assets fails → try get_asset_details
-- search_documents fails → try get_related_documents
-- Specific tool fails → use run_sql
-- Complex fails → break into simpler queries
+Ask if a user is asking about an asset or a document or project. Users often don't give enough details. But for vague descriptive terms within a known category, **attempt the search before asking**.
